@@ -211,7 +211,7 @@ mvn clean package -P embedded-jetty -P bundle-ui -Dlogback.configuration.file=sr
 
 ## To run for local dev
 ### Command Line
-Using the maven jetty plugin, you can just run `mvn jetty:run` and `mvn jetty:stop`.
+Using the maven jetty plugin, you can just run `mvn -P enhance jetty:run` and `mvn jetty:stop`.
 
 The plugin will periodically scan your project for changes and automatically redeploy the application.
 
