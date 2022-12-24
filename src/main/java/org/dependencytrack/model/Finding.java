@@ -84,6 +84,15 @@ public class Finding implements Serializable {
             "LEFT JOIN \"ANALYSIS\" ON (\"COMPONENT\".\"ID\" = \"ANALYSIS\".\"COMPONENT_ID\") AND (\"VULNERABILITY\".\"ID\" = \"ANALYSIS\".\"VULNERABILITY_ID\") AND (\"COMPONENT\".\"PROJECT_ID\" = \"ANALYSIS\".\"PROJECT_ID\") " +
             "WHERE \"COMPONENT\".\"PROJECT_ID\" = ?";
 
+            public static final String QUERY2 = "SELECT COUNT(COMPONENT.PROJECT_ID)" +
+            "FROM \"COMPONENT\" " +
+            "INNER JOIN \"COMPONENTS_VULNERABILITIES\" ON (\"COMPONENT\".\"ID\" = \"COMPONENTS_VULNERABILITIES\".\"COMPONENT_ID\")" + 
+            "INNER JOIN \"VULNERABILITY\" ON (\"COMPONENTS_VULNERABILITIES\".\"VULNERABILITY_ID\" = \"VULNERABILITY\".\"ID\") AND (\"VULNERABILITY\".\"VULNID\" LIKE %XXXXXX%)" +
+            "INNER JOIN \"FINDINGATTRIBUTION\" ON (\"COMPONENT\".\"ID\" = \"FINDINGATTRIBUTION\".\"COMPONENT_ID\") AND (\"VULNERABILITY\".\"ID\" = \"FINDINGATTRIBUTION\".\"VULNERABILITY_ID\")" +
+            "LEFT JOIN \"ANALYSIS\" ON (\"COMPONENT\".\"ID\" = \"ANALYSIS\".\"COMPONENT_ID\") AND (\"VULNERABILITY\".\"ID\" = \"ANALYSIS\".\"VULNERABILITY_ID\") AND (\"COMPONENT\".\"PROJECT_ID\" = \"ANALYSIS\".\"PROJECT_ID\") " +
+            "WHERE \"COMPONENT\".\"PROJECT_ID\" = ?";
+
+
     private UUID project;
     private Map<String, Object> component = new LinkedHashMap<>();
     private Map<String, Object> vulnerability = new LinkedHashMap<>();
