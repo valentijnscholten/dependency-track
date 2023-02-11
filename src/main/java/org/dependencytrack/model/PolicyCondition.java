@@ -24,6 +24,8 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 import javax.jdo.annotations.Column;
+import javax.jdo.annotations.FetchGroup;
+import javax.jdo.annotations.FetchGroups;
 import javax.jdo.annotations.IdGeneratorStrategy;
 import javax.jdo.annotations.PersistenceCapable;
 import javax.jdo.annotations.Persistent;
@@ -45,6 +47,13 @@ import java.util.UUID;
 @PersistenceCapable
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
+
+@FetchGroups({
+    @FetchGroup(name = "METRICS_UPDATE", members = {
+        @Persistent(name = "policy"),
+    })
+})
+
 public class PolicyCondition implements Serializable {
 
     public enum Operator {

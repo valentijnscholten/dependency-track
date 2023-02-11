@@ -47,7 +47,7 @@ import java.util.concurrent.TimeUnit;
 public class PortfolioMetricsUpdateTask implements Subscriber {
 
     private static final Logger LOGGER = Logger.getLogger(PortfolioMetricsUpdateTask.class);
-    private static final long BATCH_SIZE = SystemUtil.getCpuCores();
+    private static final long BATCH_SIZE = 1;
 
     @Override
     public void inform(final Event e) {
@@ -81,8 +81,8 @@ public class PortfolioMetricsUpdateTask implements Subscriber {
                     LOGGER.debug("Dispatching metrics update event for project " + project.getUuid());
                     final var callbackEvent = new CallbackEvent(countDownLatch::countDown);
                     Event.dispatch(new ProjectMetricsUpdateEvent(project.getUuid())
-                            .onSuccess(callbackEvent)
-                            .onFailure(callbackEvent));
+                    .onSuccess(callbackEvent)
+                    .onFailure(callbackEvent));
                 }
 
                 LOGGER.debug("Waiting for metrics updates for projects " + firstId + "-" + lastId + " to complete");
@@ -169,9 +169,9 @@ public class PortfolioMetricsUpdateTask implements Subscriber {
     private List<Project> fetchNextActiveProjectsPage(final PersistenceManager pm, final Long lastId) throws Exception {
         try (final Query<Project> query = pm.newQuery(Project.class)) {
             if (lastId == null) {
-                query.setFilter("(active == null || active == true)");
+                query.setFilter("(active == null || active == true) && id==322");
             } else {
-                query.setFilter("(active == null || active == true) && id < :lastId");
+                query.setFilter("(active == null || active == true) && id < :lastId && id==322");
                 query.setParameters(lastId);
             }
             query.setOrdering("id DESC");

@@ -22,6 +22,7 @@ import alpine.common.logging.Logger;
 import alpine.event.framework.Event;
 import alpine.event.framework.Subscriber;
 import org.apache.commons.lang3.time.DurationFormatUtils;
+import org.datanucleus.PropertyNames;
 import org.dependencytrack.event.ProjectMetricsUpdateEvent;
 import org.dependencytrack.metrics.Metrics;
 import org.dependencytrack.model.Component;
@@ -29,6 +30,7 @@ import org.dependencytrack.model.Project;
 import org.dependencytrack.model.ProjectMetrics;
 import org.dependencytrack.persistence.QueryManager;
 
+import javax.jdo.FetchPlan;
 import javax.jdo.PersistenceManager;
 import javax.jdo.Query;
 import java.util.Date;
@@ -63,20 +65,23 @@ public class ProjectMetricsUpdateTask implements Subscriber {
 
         try (final QueryManager qm = new QueryManager()) {
             final PersistenceManager pm = qm.getPersistenceManager();
+            pm.setProperty(PropertyNames.PROPERTY_CACHE_L2_TYPE, "none");
 
             final Project project = qm.getObjectByUuid(Project.class, uuid, List.of(Project.FetchGroup.METRICS_UPDATE.name()));
             if (project == null) {
                 throw new NoSuchElementException("Project " + uuid + " does not exist");
             }
 
-            LOGGER.debug("Fetching first components page for project " + uuid);
+            LOGGER.debug("Fetching first components page for project " + project.getUuid());
             List<Component> components = fetchNextComponentsPage(pm, project, null);
-
+            
             while (!components.isEmpty()) {
+                LOGGER.debug("Fetched " + components.size() + " components for project " + project.getUuid());
                 for (final Component component : components) {
                     final Counters componentCounters;
                     try {
-                        componentCounters = ComponentMetricsUpdateTask.updateMetrics(component.getUuid());
+                        LOGGER.debug("Printing vulnerabilities count: " + component.getVulnerabilities().stream().count());
+                        componentCounters = ComponentMetricsUpdateTask.updateMetrics(qm, component);
                     } catch (NoSuchElementException ex) {
                         // This will happen when a component or its associated project have been deleted after the
                         // task started. Instead of splurging the log with to-be-expected errors, we just log it
@@ -152,19 +157,21 @@ public class ProjectMetricsUpdateTask implements Subscriber {
     }
 
     private List<Component> fetchNextComponentsPage(final PersistenceManager pm, final Project project, final Long lastId) throws Exception {
-        try (final Query<Component> query = pm.newQuery(Component.class)) {
-            if (lastId == null) {
-                query.setFilter("project == :project");
-                query.setParameters(project);
-            } else {
-                query.setFilter("project == :project && id < :lastId");
-                query.setParameters(project, lastId);
-            }
-            query.setOrdering("id DESC");
-            query.setRange(0, 500);
-            query.getFetchPlan().setGroup(Component.FetchGroup.METRICS_UPDATE.name());
-            return List.copyOf(query.executeList());
+        Query<Component> query = pm.newQuery(Component.class);
+        if (lastId == null) {
+            query.setFilter("project == :project");
+            query.setParameters(project);
+        } else {
+            query.setFilter("project == :project && id < :lastId");
+            query.setParameters(project, lastId);
         }
+        query.setOrdering("id DESC");
+        query.setRange(0, 500);
+        query.getFetchPlan().setGroup(Component.FetchGroup.METRICS_UPDATE.name());
+        query.getFetchPlan().setFetchSize(FetchPlan.FETCH_SIZE_GREEDY);
+        query.getFetchPlan().setMaxFetchDepth(10);
+        // return List.copyOf(query.executeList());
+        return query.executeList();
     }
 
 }

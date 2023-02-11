@@ -24,6 +24,8 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 import javax.jdo.annotations.Column;
+import javax.jdo.annotations.FetchGroup;
+import javax.jdo.annotations.FetchGroups;
 import javax.jdo.annotations.IdGeneratorStrategy;
 import javax.jdo.annotations.Index;
 import javax.jdo.annotations.PersistenceCapable;
@@ -46,6 +48,15 @@ import java.util.UUID;
 @PersistenceCapable
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
+@FetchGroups({
+    @FetchGroup(name = "METRICS_UPDATE", members = {
+            @Persistent(name = "id"),
+            @Persistent(name = "type"),
+            @Persistent(name = "component"),
+            @Persistent(name = "policyCondition"),
+            @Persistent(name = "analysis")
+    })
+})
 public class PolicyViolation implements Serializable {
 
     public enum Type {

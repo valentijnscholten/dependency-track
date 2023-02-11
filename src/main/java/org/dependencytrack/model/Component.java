@@ -82,7 +82,10 @@ import java.util.Set;
         @FetchGroup(name = "METRICS_UPDATE", members = {
                 @Persistent(name = "id"),
                 @Persistent(name = "lastInheritedRiskScore"),
-                @Persistent(name = "uuid")
+                @Persistent(name = "uuid"),
+                @Persistent(name = "vulnerabilities"),
+                @Persistent(name = "analysises"),
+                @Persistent(name = "policyViolations")                
         })
 })
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -318,6 +321,12 @@ public class Component implements Serializable {
     @Element(column = "VULNERABILITY_ID")
     @Order(extensions = @Extension(vendorName = "datanucleus", key = "list-ordering", value = "id ASC"))
     private List<Vulnerability> vulnerabilities;
+
+    @Persistent(mappedBy = "component")
+    private Collection<Analysis> analysises;
+
+    @Persistent(mappedBy = "component")
+    private Collection<PolicyViolation> policyViolations;
 
     @Persistent(defaultFetchGroup = "true")
     @Index(name = "COMPONENT_PROJECT_ID_IDX")
@@ -698,6 +707,14 @@ public class Component implements Serializable {
 
     public void removeVulnerability(Vulnerability vulnerability) {
         this.vulnerabilities.remove(vulnerability);
+    }
+
+    public Collection<Analysis> getAnalysises() {
+        return analysises;
+    }
+
+    public Collection<PolicyViolation> getPolicyViolations() {
+        return policyViolations;
     }
 
     public Project getProject() {
