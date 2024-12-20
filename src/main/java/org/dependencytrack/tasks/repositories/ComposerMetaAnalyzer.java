@@ -30,6 +30,7 @@ import org.apache.http.util.EntityUtils;
 import org.apache.maven.artifact.versioning.ComparableVersion;
 import org.dependencytrack.model.Component;
 import org.dependencytrack.model.RepositoryType;
+import org.dependencytrack.util.JsonUtil;
 
 import java.io.IOException;
 import java.text.DateFormat;
@@ -80,6 +81,43 @@ public class ComposerMetaAnalyzer extends AbstractMetaAnalyzer {
             return meta;
         }
 
+        String packageMetaDataUrl = PACKAGE_META_DATA_URL;
+
+        // Retrieve package.json file, which should be there in a valid repository and it should contain meta-data-url
+        final String packageJsonUrl = baseUrl + "/package.json";
+        try (final CloseableHttpResponse packageJsonResponse = processHttpRequest(packageJsonUrl)) {
+            if (packageJsonResponse.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
+                LOGGER.warn("Failed to retrieve package.json from " + packageJsonUrl);
+                return meta;
+            } else {
+                // Process the package.json content if needed
+                if (packageJsonResponse.getEntity().getContent() == null) {
+                    LOGGER.warn("Empty package.json from " + packageJsonUrl);
+                    return meta;
+                }
+                final String packageJsonString = EntityUtils.toString(packageJsonResponse.getEntity());
+                if (JsonUtil.isBlankJson(packageJsonString)) {
+                    LOGGER.warn("Empty package.json from " + packageJsonUrl);
+                    return meta;
+                }
+
+                final JSONObject packagesRoot = new JSONObject(packageJsonString);
+                if (!packagesRoot.has(packageJsonString)) {
+                    if (!packagesRoot.has("packages")) {
+                        // example repo is https://repo.magento.com
+                        // not sure if metadata can be found via providers-url in packages.json
+                        // TODO research providers-url for metadata in Composer
+                        LOGGER.warn("No meta-data-url and no inline packages in package.json from " + packageJsonUrl + " skipping meta data analysis");
+                        return meta;
+                    } else {
+                        JSONObject inlinePackages = packagesRoot.getJSONObject("packages");
+                    }
+                    packageMetaDataUrl = packagesRoot.getString("metadata-url");
+                }
+        } catch (IOException e) {
+            LOGGER.error("Error retrieving package.json from " + packageJsonUrl, e);
+        }
+
         final String url = String.format(baseUrl + PACKAGE_META_DATA_URL, urlEncode(component.getPurl().getNamespace()), urlEncode(component.getPurl().getName()));
         try (final CloseableHttpResponse response = processHttpRequest(url)) {
             if (response.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
@@ -90,10 +128,7 @@ public class ComposerMetaAnalyzer extends AbstractMetaAnalyzer {
                 return meta;
             }
             String jsonString = EntityUtils.toString(response.getEntity());
-            if (jsonString.equalsIgnoreCase("")) {
-                return meta;
-            }
-            if (jsonString.equalsIgnoreCase("{}")) {
+            if (JsonUtil.isBlankJson(EntityUtils.toString(response.getEntity()))) {
                 return meta;
             }
             JSONObject jsonObject = new JSONObject(jsonString);
