@@ -70,11 +70,11 @@ public class ComposerMetaAnalyzer extends AbstractMetaAnalyzer {
      *
      * - security-advisories: very relevant, but only in a VulnerabilityAnalyzer (or mirrored VulnerabilitySource) context
      *
+     * - providers-lazy-url: old v1 construct for which I haven't seen any example, in v2 the metadata-url is used for this. seems like it's not relevant for DT
      * - list: returns only package names, seems like repo.packagist.org (and .com?) are the only ones implementing it
      * - providers-api: not relevant
      * - notify-batch: not relevant
      * - providers-url and provider-includes: only relevant to check hashes, so not relevant for DT currently. Replaced by metadata-url in V2 repositories.
-     * - providers-lazy-url: not relevant
      * - providers-api: not relevant
      * - search: not relevant
      */
@@ -105,9 +105,9 @@ public class ComposerMetaAnalyzer extends AbstractMetaAnalyzer {
             return new MetaModel(component);
         }
 
-        final JSONObject repoRoot = getReportRoot();
+        final JSONObject repoRoot = getRepoRoot();
         if (repoRoot == null || !repoRoot.has("metadata-url")) {
-            // absence of metadat-url implies V2 repository
+            // absence of metadat-url implies V1 repository
             return analyzeFromMetadataUrl(component, PACKAGE_META_DATA_PATH_PATTERN_V1);
         }
 
@@ -115,7 +115,7 @@ public class ComposerMetaAnalyzer extends AbstractMetaAnalyzer {
         return analyzeFromMetadataUrl(component, packageMetaDataPathPattern);
     }
 
-    private JSONObject getReportRoot() {
+    private JSONObject getRepoRoot() {
         // Code mimicksed from https://github.com/composer/composer/blob/main/src/Composer/Repository/ComposerRepository.php
         // Retrieve packages.json file, which must be present even for V1 repositories
         final String packageJsonUrl = baseUrl + "/packages.json";
