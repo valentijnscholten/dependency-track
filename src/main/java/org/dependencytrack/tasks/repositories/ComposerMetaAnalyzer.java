@@ -58,8 +58,8 @@ public class ComposerMetaAnalyzer extends AbstractMetaAnalyzer {
     private static final String PACKAGE_META_DATA_PATH_PATTERN_V1 = "/p/%package%.json";
 
     private static final Cache<String, JSONObject> REPO_ROOT_CACHE = Caffeine.newBuilder()
-        .expireAfterWrite(6, TimeUnit.MINUTES)
-        .build();
+                                                                    .expireAfterWrite(10, TimeUnit.MINUTES)
+                                                                    .build();
 
     /**
      * Some of the properties of the root package.json are documented at https://github.com/composer/composer/blob/main/doc/05-repositories.md
@@ -105,38 +105,7 @@ public class ComposerMetaAnalyzer extends AbstractMetaAnalyzer {
             return new MetaModel(component);
         }
 
-        // Code mimicksed from https://github.com/composer/composer/blob/main/src/Composer/Repository/ComposerRepository.php
-        // Retrieve packages.json file, which must be present even for V1 repositories
-        final String packageJsonUrl = baseUrl + "/packages.json";
-
-        JSONObject repoRoot = REPO_ROOT_CACHE.getIfPresent(packageJsonUrl);
-        if (repoRoot == null) {
-            try (final CloseableHttpResponse packageJsonResponse = processHttpRequest(packageJsonUrl)) {
-                if (packageJsonResponse.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
-                    LOGGER.warn("Failed to retrieve packages.json from " + packageJsonUrl + " HTTP status code: " + packageJsonResponse.getStatusLine().getStatusCode());
-                    return new MetaModel(component);
-                }
-
-                //Make sure we don't return before caching empty responses
-                String packageJsonString = "";
-                if (packageJsonResponse.getEntity().getContent() == null) {
-                    LOGGER.warn("Null packages.json from " + packageJsonUrl);
-                }
-
-                packageJsonString = EntityUtils.toString(packageJsonResponse.getEntity());
-                if (JsonUtil.isBlankJson(packageJsonString)) {
-                    LOGGER.warn("Empty packages.json from " + packageJsonUrl);
-                }
-
-                repoRoot = new JSONObject(packageJsonString);
-                // Not sure, but it could be that some repositories provide responses based on credentials
-                // We do not have enough information here to include those credentials in the cache key
-                // TODO Investigate if repository root metedata can differ per set of authentication credentials
-                REPO_ROOT_CACHE.put(packageJsonUrl, repoRoot);
-            } catch (IOException e) {
-                LOGGER.error("Error retrieving packages.json from " + packageJsonUrl, e);
-            }
-        }
+        final JSONObject repoRoot = getReportRoot();
         if (repoRoot == null || !repoRoot.has("metadata-url")) {
             // absence of metadat-url implies V2 repository
             return analyzeFromMetadataUrl(component, PACKAGE_META_DATA_PATH_PATTERN_V1);
@@ -146,11 +115,38 @@ public class ComposerMetaAnalyzer extends AbstractMetaAnalyzer {
         return analyzeFromMetadataUrl(component, packageMetaDataPathPattern);
     }
 
-    private MetaModel analyzeFromRoot(final Component component, final JSONObject repoRoot) {
-        final String packageMetaDataPathPattern = repoRoot.getString("metadata-url");
-        return analyzeFromMetadataUrl(component, packageMetaDataPathPattern);
-    }
+    private JSONObject getReportRoot() {
+        // Code mimicksed from https://github.com/composer/composer/blob/main/src/Composer/Repository/ComposerRepository.php
+        // Retrieve packages.json file, which must be present even for V1 repositories
+        final String packageJsonUrl = baseUrl + "/packages.json";
 
+        JSONObject repoRoot = REPO_ROOT_CACHE.getIfPresent(packageJsonUrl);
+        if (repoRoot == null) {
+            try (final CloseableHttpResponse packageJsonResponse = processHttpRequest(packageJsonUrl)) {
+                //Make sure we also cache invalid / empty responses
+                repoRoot = new JSONObject("{}");
+                if (packageJsonResponse.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
+                    LOGGER.warn("Failed to retrieve packages.json from " + packageJsonUrl + " HTTP status code: " + packageJsonResponse.getStatusLine().getStatusCode());
+                } else if (packageJsonResponse.getEntity().getContent() == null) {
+                    LOGGER.warn("Null packages.json from " + packageJsonUrl);
+                } else {
+                    final String packageJsonString = EntityUtils.toString(packageJsonResponse.getEntity());
+                    if (JsonUtil.isBlankJson(packageJsonString)) {
+                        LOGGER.warn("Empty packages.json from " + packageJsonUrl);
+                    } else {
+                        repoRoot = new JSONObject(packageJsonString);
+                    }
+                }
+                // Not sure, but it could be that some repositories provide responses based on credentials
+                // We do not have enough information here to include those credentials in the cache key
+                // TODO Investigate if repository root metedata can differ per set of authentication credentials
+                REPO_ROOT_CACHE.put(packageJsonUrl, repoRoot);
+            } catch (IOException e) {
+                LOGGER.error("Error retrieving packages.json from " + packageJsonUrl, e);
+            }
+        }
+        return repoRoot;
+    }
 
     private MetaModel analyzeFromMetadataUrl(final Component component, final String packageMetaDataPathPattern) {
         String namespace = urlEncode(component.getPurl().getNamespace());
