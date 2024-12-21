@@ -67,7 +67,9 @@ public class ComposerMetaAnalyzer extends AbstractMetaAnalyzer {
      * - packages: very relevant as some repositories only provide their metadata this way (packages.shopware.com)
      * - includes: very relevant as some repositories only provide their metadata this way (packages.mirasvit.com, composer.magepal.com)
      * - available-packages and available-package-patterns: relevant to limit traffic to specific repositories
+     *
      * - security-advisories: very relevant, but only in a VulnerabilityAnalyzer (or mirrored VulnerabilitySource) context
+     *
      * - list: returns only package names, seems like repo.packagist.org (and .com?) are the only ones implementing it
      * - providers-api: not relevant
      * - notify-batch: not relevant
@@ -135,7 +137,7 @@ public class ComposerMetaAnalyzer extends AbstractMetaAnalyzer {
                 LOGGER.error("Error retrieving packages.json from " + packageJsonUrl, e);
             }
         }
-        if (!repoRoot.has("metadata-url")) {
+        if (repoRoot == null || !repoRoot.has("metadata-url")) {
             // absence of metadat-url implies V2 repository
             return analyzeFromMetadataUrl(component, PACKAGE_META_DATA_PATH_PATTERN_V1);
         }
