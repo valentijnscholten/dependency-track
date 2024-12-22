@@ -117,6 +117,13 @@ public class ComposerMetaAnalyzer extends AbstractMetaAnalyzer {
             return analyzeFromMetadataUrl(meta, component, PACKAGE_META_DATA_PATH_PATTERN_V1);
         }
 
+        if (repoRoot.has("metadata-url")) {
+            // presence of metadata-url implies V2 repository, and takes precedence over included packages and other V1 features
+            final String packageMetaDataPathPattern = repoRoot.getString("metadata-url");
+            return analyzeFromMetadataUrl(meta, component, packageMetaDataPathPattern);
+        }
+
+        //initial batch of included pacakges is included in packages.json response
         if (isMinified(repoRoot)) {
             repoRoot.put("packages", expandPackages(repoRoot.getJSONObject("packages")));
         }
@@ -134,13 +141,8 @@ public class ComposerMetaAnalyzer extends AbstractMetaAnalyzer {
             }
         }
 
-        if (!repoRoot.has("metadata-url")) {
-            // absence of metadat-url implies V1 repository
-            return analyzeFromMetadataUrl(meta, component, PACKAGE_META_DATA_PATH_PATTERN_V1);
-        }
-
-        final String packageMetaDataPathPattern = repoRoot.getString("metadata-url");
-        return analyzeFromMetadataUrl(meta, component, packageMetaDataPathPattern);
+        // V1 and no included packages, so we have to retrieve the package specific metadata
+        return analyzeFromMetadataUrl(meta, component, PACKAGE_META_DATA_PATH_PATTERN_V1);
     }
 
     private JSONObject getRepoRoot() {
