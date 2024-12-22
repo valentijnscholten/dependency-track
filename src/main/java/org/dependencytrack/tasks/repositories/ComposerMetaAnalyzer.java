@@ -101,6 +101,10 @@ public class ComposerMetaAnalyzer extends AbstractMetaAnalyzer {
      * {@inheritDoc}
      */
     public MetaModel analyze(final Component component) {
+        if (!baseUrl.endsWith("/")) {
+            baseUrl = baseUrl + "/";
+        }
+
         MetaModel meta = new MetaModel(component);
         if (component.getPurl() == null) {
             return meta;
@@ -205,7 +209,8 @@ public class ComposerMetaAnalyzer extends AbstractMetaAnalyzer {
             JSONObject includes = data.getJSONObject("includes");
             includes.names().forEach(name -> {
                 String includeFilename = (String)name;
-                try (final CloseableHttpResponse includeResponse = processHttpRequest(includeFilename)) {
+                final String includeUrl = baseUrl + includeFilename;
+                try (final CloseableHttpResponse includeResponse = processHttpRequest(includeUrl)) {
                     if (includeResponse.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
                         LOGGER.warn("Failed to retrieve include " + includeFilename + " HTTP status code: " + includeResponse.getStatusLine().getStatusCode());
                     } else if (includeResponse.getEntity().getContent() == null) {
@@ -216,6 +221,7 @@ public class ComposerMetaAnalyzer extends AbstractMetaAnalyzer {
                             LOGGER.warn("Empty include from " + includeFilename);
                         } else {
                             JSONObject nextData = new JSONObject(nextDataString);
+
                             loadIncludedPackages(repoRoot, nextData, false);
                         }
                     }
@@ -224,6 +230,8 @@ public class ComposerMetaAnalyzer extends AbstractMetaAnalyzer {
                     handleRequestException(LOGGER, e);
                 }
             });
+            // remove processed includes as the repoRoot gets cached and we don't need to retrieve the includes again
+            data.remove("includes");
         }
     }
 

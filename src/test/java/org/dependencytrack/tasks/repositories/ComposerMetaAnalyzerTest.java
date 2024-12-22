@@ -244,8 +244,95 @@ public class ComposerMetaAnalyzerTest {
                 request(),
                 org.mockserver.verify.VerificationTimes.exactly(1)
         );
+    }
 
+    @Test
+    public void testAnalyzerIncludesAndRepoPath() throws Exception {
+        Component component = new Component();
+        ComposerMetaAnalyzer analyzer = new ComposerMetaAnalyzer();
 
+        component.setPurl(new PackageURL("pkg:composer/space/cowboy@v1.1.0"));
+        final File packagistRepoRootFile = getRepoResourceFile("composer.include.com.userpass", "packages");
+        final File packagistFile = getPackageResourceFile("composer.include.com.userpass", "space", "cowboy");
+
+        analyzer.setRepositoryBaseUrl(String.format("http://localhost:%d/user:pass/", mockServer.getPort()));
+        @SuppressWarnings("resource")
+        MockServerClient mockClient = new MockServerClient("localhost", mockServer.getPort());
+        mockClient.when(
+                                request()
+                                        .withMethod("GET")
+                                        .withPath("/user:pass/packages.json")
+                        )
+                        .respond(
+                                response()
+                                        .withStatusCode(200)
+                                        .withHeader(HttpHeaders.CONTENT_TYPE, "application/json")
+                                        .withBody(getTestData(packagistRepoRootFile))
+                        );
+
+        mockClient.when(
+                                request()
+                                        .withMethod("GET")
+                                        .withPath("/user:pass/user:pass/include/all$10dbe443e5265bcae424f7fb60cd9d01b78a1b60.json")
+
+                                        // .withPath("/user%3Apass/user%3Apass/include/all%2410dbe443e5265bcae424f7fb60cd9d01b78a1b60.json")
+                                        )
+                        .respond(
+                                response()
+                                        .withStatusCode(200)
+                                        .withHeader(HttpHeaders.CONTENT_TYPE, "application/json")
+                                        .withBody(getTestData(packagistFile))
+                        );
+
+        MetaModel metaModel = analyzer.analyze(component);
+
+        Assert.assertEquals("2.3.8", metaModel.getLatestVersion());
+        Assert.assertNull(metaModel.getPublishedTimestamp());
+
+        mockClient.verify(
+                request()
+                        .withMethod("GET")
+                        .withPath("/user:pass/packages.json"),
+                org.mockserver.verify.VerificationTimes.exactly(1)
+        );
+
+        mockClient.verify(
+                request()
+                        .withMethod("GET")
+                        .withPath("/user:pass/user:pass/include/all$10dbe443e5265bcae424f7fb60cd9d01b78a1b60.json"),
+                org.mockserver.verify.VerificationTimes.exactly(1)
+        );
+
+        mockClient.verify(
+                request(),
+                org.mockserver.verify.VerificationTimes.exactly(2)
+        );
+
+        component.setPurl(new PackageURL("pkg:composer/something/something@v1.1.0"));
+        MetaModel metaModel2 = analyzer.analyze(component);
+
+        Assert.assertNull(metaModel2.getLatestVersion());
+        Assert.assertNull(metaModel2.getPublishedTimestamp());
+
+        // no extra calls should have been made
+        mockClient.verify(
+                request()
+                        .withMethod("GET")
+                        .withPath("/user:pass/packages.json"),
+                org.mockserver.verify.VerificationTimes.exactly(1)
+        );
+
+        mockClient.verify(
+                request()
+                        .withMethod("GET")
+                        .withPath("/user:pass/user:pass/include/all$10dbe443e5265bcae424f7fb60cd9d01b78a1b60.json"),
+                org.mockserver.verify.VerificationTimes.exactly(1)
+        );
+
+        mockClient.verify(
+                request(),
+                org.mockserver.verify.VerificationTimes.exactly(2)
+        );
     }
 
     @Test
