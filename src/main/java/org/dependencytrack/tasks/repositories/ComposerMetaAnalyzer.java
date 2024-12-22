@@ -308,6 +308,7 @@ public class ComposerMetaAnalyzer extends AbstractMetaAnalyzer {
             }
 
             // Some (old?) repositories like composer.amasty.com/enterprise do not include a 'version_normalized' field
+            // TODO Should we attempt to normalize ourselves? The PHP code uses Semver lib
             String version_normalized = packageVersion.getString("version");
             if (packageVersion.has("version_normalized")) {
                 version_normalized = packageVersion.getString("version_normalized");

@@ -166,16 +166,16 @@ public class ComposerMetaAnalyzerTest {
         Component component = new Component();
         ComposerMetaAnalyzer analyzer = new ComposerMetaAnalyzer();
 
-        component.setPurl(new PackageURL("pkg:composer/amasty/base@v1.1.0"));
-        final File packagistRepoRootFile = getRepoResourceFile("composer.amasty.com.enterprise", "packages");
+        component.setPurl(new PackageURL("pkg:composer/dummyspace/base@v1.1.0"));
+        final File packagistRepoRootFile = getRepoResourceFile("composer.dummy.com.therepo", "packages");
 
-        analyzer.setRepositoryBaseUrl(String.format("http://localhost:%d/enterprise", mockServer.getPort()));
+        analyzer.setRepositoryBaseUrl(String.format("http://localhost:%d/therepo", mockServer.getPort()));
         @SuppressWarnings("resource")
         MockServerClient mockClient = new MockServerClient("localhost", mockServer.getPort());
         mockClient.when(
                                 request()
                                         .withMethod("GET")
-                                        .withPath("/enterprise/packages.json")
+                                        .withPath("/therepo/packages.json")
                         )
                         .respond(
                                 response()
@@ -187,7 +187,7 @@ public class ComposerMetaAnalyzerTest {
         mockClient.when(
                                 request()
                                         .withMethod("GET")
-                                        .withPath("/enterprise/p2/amasty/base.json")
+                                        .withPath("/therepo/p2/dummyspace/base.json")
                         )
                         .respond(
                                 response()
@@ -203,14 +203,14 @@ public class ComposerMetaAnalyzerTest {
         mockClient.verify(
                 request()
                         .withMethod("GET")
-                        .withPath("/enterprise/packages.json"),
+                        .withPath("/therepo/packages.json"),
                 org.mockserver.verify.VerificationTimes.exactly(1)
         );
 
         mockClient.verify(
                 request()
                         .withMethod("GET")
-                        .withPath("/enterprise/p2/amasty/base.json"),
+                        .withPath("/therepo/p2/dummyspace/base.json"),
                 org.mockserver.verify.VerificationTimes.exactly(0)
         );
 
@@ -229,14 +229,14 @@ public class ComposerMetaAnalyzerTest {
         mockClient.verify(
                 request()
                         .withMethod("GET")
-                        .withPath("/enterprise/packages.json"),
+                        .withPath("/therepo/packages.json"),
                 org.mockserver.verify.VerificationTimes.exactly(1)
         );
 
         mockClient.verify(
                 request()
                         .withMethod("GET")
-                        .withPath("/enterprise/p2/amasty/base.json"),
+                        .withPath("/therepo/p2/dummyspace/base.json"),
                 org.mockserver.verify.VerificationTimes.exactly(0)
         );
 
