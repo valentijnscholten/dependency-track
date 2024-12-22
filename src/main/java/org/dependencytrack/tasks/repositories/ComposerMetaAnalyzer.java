@@ -101,18 +101,51 @@ public class ComposerMetaAnalyzer extends AbstractMetaAnalyzer {
      * {@inheritDoc}
      */
     public MetaModel analyze(final Component component) {
+        MetaModel meta = new MetaModel(component);
         if (component.getPurl() == null) {
-            return new MetaModel(component);
+            return meta;
         }
 
         final JSONObject repoRoot = getRepoRoot();
+        if (repoRoot != null && repoRoot.has("includes"))  {
+            //first load includes into packages field
+
+        }
+
+        if (repoRoot != null && repoRoot.has("packages"))  {
+            boolean minified= repoRoot.has("minified") && repoRoot.getString("minified").equals("composer/2.0");
+            //first analyze inline (partial) packages, but augment with data from package specific metadata
+            // "packages" can be an empty JSONArray
+            // "packages" can be a JSONObject, minified or not
+            Object packagesObject = repoRoot.get("packages");
+            if (packagesObject instanceof JSONObject) {
+                JSONObject packages = (JSONObject) packagesObject;
+                packages.names().forEach(name -> {
+                    String packageName = (String)name;
+                    if (minified) {
+                        JSONArray packageVersions = packages.getJSONArray(packageName);
+                        analyzePackageVersions(meta, component, expandPackageVersions(packageVersions));
+                    } else {
+                        JSONObject packageVersions = packages.getJSONObject(packageName);
+                        analyzePackageVersions(meta, component, packageVersions);
+                    }
+                });
+            }
+
+            // Object partialPackages = repoRoot.get("packages");
+            // if (repoRoot.has("minified") && repoRoot.getString("minified").equals("composer/2.0")) {
+            //     // partialPackages = expandPackageVersionsJsonObject(partialPackages);
+            // }
+            // meta = analyzePackageVersions(meta, component, partialPackages);
+        }
+
         if (repoRoot == null || !repoRoot.has("metadata-url")) {
             // absence of metadat-url implies V1 repository
-            return analyzeFromMetadataUrl(component, PACKAGE_META_DATA_PATH_PATTERN_V1);
+            return analyzeFromMetadataUrl(meta, component, PACKAGE_META_DATA_PATH_PATTERN_V1);
         }
 
         final String packageMetaDataPathPattern = repoRoot.getString("metadata-url");
-        return analyzeFromMetadataUrl(component, packageMetaDataPathPattern);
+        return analyzeFromMetadataUrl(meta, component, packageMetaDataPathPattern);
     }
 
     private JSONObject getRepoRoot() {
@@ -148,7 +181,7 @@ public class ComposerMetaAnalyzer extends AbstractMetaAnalyzer {
         return repoRoot;
     }
 
-    private MetaModel analyzeFromMetadataUrl(final Component component, final String packageMetaDataPathPattern) {
+    private MetaModel analyzeFromMetadataUrl(final MetaModel meta, final Component component, final String packageMetaDataPathPattern) {
         String namespace = urlEncode(component.getPurl().getNamespace());
         String name = urlEncode(component.getPurl().getName());
 
@@ -175,17 +208,10 @@ public class ComposerMetaAnalyzer extends AbstractMetaAnalyzer {
             }
 
             if (metadataJson.has("minified") && metadataJson.getString("minified").equals("composer/2.0")) {
-                // Convert JSONArray to JSONObject with "version" as the key to align with existing v1 code (Compoer does this as well)
-                final JSONArray composerPackageVersions = responsePackages.getJSONArray(expectedResponsePackage);
-                JSONObject versionedPackages = new JSONObject();
-                composerPackageVersions.forEach(item -> {
-                    JSONObject composerPackage = (JSONObject) item;
-                    String version = composerPackage.getString("version");
-                    versionedPackages.put(version, composerPackage);
-                });
-                return analyzePackageVersions(component, versionedPackages);
+                return analyzePackageVersions(meta, component, expandPackageVersions(responsePackages.getJSONArray(expectedResponsePackage)));
+            } else {
+                return analyzePackageVersions(meta, component, responsePackages.getJSONObject(expectedResponsePackage));
             }
-            return analyzePackageVersions(component, responsePackages.getJSONObject(expectedResponsePackage));
         } catch (IOException ex) {
             handleRequestException(LOGGER, ex);
         } catch (Exception ex) {
@@ -194,8 +220,20 @@ public class ComposerMetaAnalyzer extends AbstractMetaAnalyzer {
         return new MetaModel(component);
     }
 
-    private MetaModel analyzePackageVersions(Component component, JSONObject packageVersions) {
-        final MetaModel meta = new MetaModel(component);
+    private JSONObject expandPackageVersions(final JSONArray packageVersions) {
+        JSONObject versionedPackages;
+        // Convert JSONArray to JSONObject with "version" as the key to align with existing v1 code (Composer does this as well)
+        final JSONObject finalVersionedPackages = new JSONObject();
+        packageVersions.forEach(item -> {
+            JSONObject composerPackage = (JSONObject) item;
+            String version = composerPackage.getString("version");
+            finalVersionedPackages.put(version, composerPackage);
+        });
+        versionedPackages = finalVersionedPackages;
+        return versionedPackages;
+    }
+
+    private MetaModel analyzePackageVersions(final MetaModel meta, Component component, JSONObject packageVersions) {
         final ComparableVersion latestVersion = new ComparableVersion(stripLeadingV(component.getPurl().getVersion()));
         final DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX");
 
