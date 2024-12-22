@@ -131,12 +131,6 @@ public class ComposerMetaAnalyzer extends AbstractMetaAnalyzer {
                     }
                 });
             }
-
-            // Object partialPackages = repoRoot.get("packages");
-            // if (repoRoot.has("minified") && repoRoot.getString("minified").equals("composer/2.0")) {
-            //     // partialPackages = expandPackageVersionsJsonObject(partialPackages);
-            // }
-            // meta = analyzePackageVersions(meta, component, partialPackages);
         }
 
         if (repoRoot == null || !repoRoot.has("metadata-url")) {
@@ -189,14 +183,14 @@ public class ComposerMetaAnalyzer extends AbstractMetaAnalyzer {
         try (final CloseableHttpResponse response = processHttpRequest(url)) {
             if (response.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
                 handleUnexpectedHttpResponse(LOGGER, url, response.getStatusLine().getStatusCode(), response.getStatusLine().getReasonPhrase(), component);
-                return new MetaModel(component);
+                return meta;
             }
             if (response.getEntity().getContent() == null) {
-                return new MetaModel(component);
+                return meta;
             }
             String metadataString = EntityUtils.toString(response.getEntity());
             if (JsonUtil.isBlankJson(metadataString)) {
-                return new MetaModel(component);
+                return meta;
             }
             JSONObject metadataJson = new JSONObject(metadataString);
             final String expectedResponsePackage = component.getPurl().getNamespace() + "/" + component.getPurl().getName();
@@ -204,7 +198,7 @@ public class ComposerMetaAnalyzer extends AbstractMetaAnalyzer {
 
             if (!responsePackages.has(expectedResponsePackage)) {
                 // the package no longer exists - for v2 there's no example (yet), v1 example https://repo.packagist.org/p/magento/adobe-ims.json
-                return new MetaModel(component);
+                return meta;
             }
 
             if (metadataJson.has("minified") && metadataJson.getString("minified").equals("composer/2.0")) {
@@ -217,7 +211,7 @@ public class ComposerMetaAnalyzer extends AbstractMetaAnalyzer {
         } catch (Exception ex) {
             throw new MetaAnalyzerException(ex);
         }
-        return new MetaModel(component);
+        return meta;
     }
 
     private JSONObject expandPackageVersions(final JSONArray packageVersions) {
