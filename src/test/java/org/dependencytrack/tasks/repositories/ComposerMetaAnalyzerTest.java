@@ -57,6 +57,7 @@ public class ComposerMetaAnalyzerTest {
         ComposerMetaAnalyzer.clearRepoRootCache();
         mockServer.reset();
     }
+
     @Test
     public void testAnalyzer() throws Exception {
         Component component = new Component();
@@ -158,6 +159,93 @@ public class ComposerMetaAnalyzerTest {
                 new SimpleDateFormat("yyyy-MM-dd HH:mm:ss XXX").parse("2024-10-11 08:11:39 Z"),
                 metaModel.getPublishedTimestamp()
         );
+    }
+
+    @Test
+    public void testAnalyzerInlinePackageAndRepoPath() throws Exception {
+        Component component = new Component();
+        ComposerMetaAnalyzer analyzer = new ComposerMetaAnalyzer();
+
+        component.setPurl(new PackageURL("pkg:composer/amasty/base@v1.1.0"));
+        final File packagistRepoRootFile = getRepoResourceFile("composer.amasty.com.enterprise", "packages");
+
+        analyzer.setRepositoryBaseUrl(String.format("http://localhost:%d/enterprise", mockServer.getPort()));
+        @SuppressWarnings("resource")
+        MockServerClient mockClient = new MockServerClient("localhost", mockServer.getPort());
+        mockClient.when(
+                                request()
+                                        .withMethod("GET")
+                                        .withPath("/enterprise/packages.json")
+                        )
+                        .respond(
+                                response()
+                                        .withStatusCode(200)
+                                        .withHeader(HttpHeaders.CONTENT_TYPE, "application/json")
+                                        .withBody(getTestData(packagistRepoRootFile))
+                        );
+
+        mockClient.when(
+                                request()
+                                        .withMethod("GET")
+                                        .withPath("/enterprise/p2/amasty/base.json")
+                        )
+                        .respond(
+                                response()
+                                        .withStatusCode(200)
+                                        .withHeader(HttpHeaders.CONTENT_TYPE, "application/json")
+                        );
+
+        MetaModel metaModel = analyzer.analyze(component);
+
+        Assert.assertEquals("1.18.0", metaModel.getLatestVersion());
+        Assert.assertNull(metaModel.getPublishedTimestamp());
+
+        mockClient.verify(
+                request()
+                        .withMethod("GET")
+                        .withPath("/enterprise/packages.json"),
+                org.mockserver.verify.VerificationTimes.exactly(1)
+        );
+
+        mockClient.verify(
+                request()
+                        .withMethod("GET")
+                        .withPath("/enterprise/p2/amasty/base.json"),
+                org.mockserver.verify.VerificationTimes.exactly(0)
+        );
+
+        mockClient.verify(
+                request(),
+                org.mockserver.verify.VerificationTimes.exactly(1)
+        );
+
+        component.setPurl(new PackageURL("pkg:composer/something/something@v1.1.0"));
+        MetaModel metaModel2 = analyzer.analyze(component);
+
+        Assert.assertNull(metaModel2.getLatestVersion());
+        Assert.assertNull(metaModel2.getPublishedTimestamp());
+
+        // no extra calls should have been made
+        mockClient.verify(
+                request()
+                        .withMethod("GET")
+                        .withPath("/enterprise/packages.json"),
+                org.mockserver.verify.VerificationTimes.exactly(1)
+        );
+
+        mockClient.verify(
+                request()
+                        .withMethod("GET")
+                        .withPath("/enterprise/p2/amasty/base.json"),
+                org.mockserver.verify.VerificationTimes.exactly(0)
+        );
+
+        mockClient.verify(
+                request(),
+                org.mockserver.verify.VerificationTimes.exactly(1)
+        );
+
+
     }
 
     @Test
@@ -399,7 +487,6 @@ public class ComposerMetaAnalyzerTest {
         Assert.assertNull(metaModel.getLatestVersion());
     }
 
-
     private static File getRepoResourceFile(String repo, String filename) throws Exception{
         String filenameResource = String.format(
                 "unit/tasks/repositories/https---%s-%s.json",
@@ -419,19 +506,19 @@ public class ComposerMetaAnalyzerTest {
         return getFileResource(filename);
     }
 
-        private static File getFileResource(String filename) throws Exception {
-                return new File(
-                        Thread.currentThread().getContextClassLoader()
-                                .getResource(filename)
-                                .toURI()
-                );
-        }
+    private static File getFileResource(String filename) throws Exception {
+        return new File(
+                Thread.currentThread().getContextClassLoader()
+                        .getResource(filename)
+                        .toURI()
+        );
+}
 
-        private static byte[] getTestData(File file) throws Exception {
-                final FileInputStream fileStream = new FileInputStream(file);
-                byte[] data = new byte[(int) file.length()];
-                fileStream.read(data);
-                fileStream.close();
-                return data;
-        }
+    private static byte[] getTestData(File file) throws Exception {
+        final FileInputStream fileStream = new FileInputStream(file);
+        byte[] data = new byte[(int) file.length()];
+        fileStream.read(data);
+        fileStream.close();
+        return data;
+     }
 }

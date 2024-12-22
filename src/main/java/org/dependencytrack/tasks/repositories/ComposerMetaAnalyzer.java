@@ -107,33 +107,30 @@ public class ComposerMetaAnalyzer extends AbstractMetaAnalyzer {
         }
 
         final JSONObject repoRoot = getRepoRoot();
-        if (repoRoot != null && repoRoot.has("includes"))  {
-            //first load includes into packages field
 
+        if (repoRoot == null) {
+            // absence of packages.json shouldn't happen, but let's try to get metadata as we did in <=4.12.2
+            return analyzeFromMetadataUrl(meta, component, PACKAGE_META_DATA_PATH_PATTERN_V1);
         }
 
-        if (repoRoot != null && repoRoot.has("packages"))  {
-            boolean minified= repoRoot.has("minified") && repoRoot.getString("minified").equals("composer/2.0");
-            //first analyze inline (partial) packages, but augment with data from package specific metadata
-            // "packages" can be an empty JSONArray
-            // "packages" can be a JSONObject, minified or not
-            Object packagesObject = repoRoot.get("packages");
-            if (packagesObject instanceof JSONObject) {
-                JSONObject packages = (JSONObject) packagesObject;
-                packages.names().forEach(name -> {
-                    String packageName = (String)name;
-                    if (minified) {
-                        JSONArray packageVersions = packages.getJSONArray(packageName);
-                        analyzePackageVersions(meta, component, expandPackageVersions(packageVersions));
-                    } else {
-                        JSONObject packageVersions = packages.getJSONObject(packageName);
-                        analyzePackageVersions(meta, component, packageVersions);
-                    }
-                });
+        if (isMinified(repoRoot)) {
+            repoRoot.put("packages", expandPackages(repoRoot.getJSONObject("packages")));
+        }
+
+        loadIncludedPackages(repoRoot, repoRoot, true);
+        // included packages are considered finite, so we can use them for analysis without retrieving the package specific metadata
+        if (repoRoot.has("packages")) {
+            JSONObject packages = repoRoot.getJSONObject("packages");
+            if (!packages.isEmpty()) {
+                if (!packages.has(getComposerPackageName(component))) {
+                    return meta;
+                }
+                JSONObject packageVersions = packages.getJSONObject(getComposerPackageName(component));
+                return analyzePackageVersions(meta, component, packageVersions);
             }
         }
 
-        if (repoRoot == null || !repoRoot.has("metadata-url")) {
+        if (!repoRoot.has("metadata-url")) {
             // absence of metadat-url implies V1 repository
             return analyzeFromMetadataUrl(meta, component, PACKAGE_META_DATA_PATH_PATTERN_V1);
         }
@@ -170,9 +167,64 @@ public class ComposerMetaAnalyzer extends AbstractMetaAnalyzer {
                 REPO_ROOT_CACHE.put(packageJsonUrl, repoRoot);
             } catch (IOException e) {
                 LOGGER.error("Error retrieving packages.json from " + packageJsonUrl, e);
+                handleRequestException(LOGGER, e);
             }
         }
         return repoRoot;
+    }
+
+    private void loadIncludedPackages(final JSONObject repoRoot, final JSONObject data, final boolean includesOnly) {
+        if (!repoRoot.has("packages") || repoRoot.get("packages") instanceof JSONArray) {
+            repoRoot.put("packages", new JSONObject());
+        }
+        if (!includesOnly && data.has("packages"))  {
+            boolean minified = isMinified(data);
+            JSONObject packages = data.getJSONObject("packages");
+            if (minified) {
+                packages = expandPackages(packages);
+            }
+
+            final JSONObject newPackages = packages;
+            newPackages.names().forEach(name -> {
+                String packageName = (String)name;
+                JSONObject packageVersions = newPackages.getJSONObject(packageName);
+
+                if (!repoRoot.getJSONObject("packages").has(packageName)) {
+                    repoRoot.getJSONObject("packages").put(packageName, new JSONObject());
+                }
+
+                JSONObject includedPackage = repoRoot.getJSONObject("packages").getJSONObject(packageName);
+                final JSONObject finalPackageVersions = packageVersions;
+                finalPackageVersions.names().forEach(version -> {
+                    includedPackage.put((String)version, finalPackageVersions.getJSONObject((String)version));
+                });
+            });
+        }
+
+        if (data.has("includes")) {
+            JSONObject includes = data.getJSONObject("includes");
+            includes.names().forEach(name -> {
+                String includeFilename = (String)name;
+                try (final CloseableHttpResponse includeResponse = processHttpRequest(includeFilename)) {
+                    if (includeResponse.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
+                        LOGGER.warn("Failed to retrieve include " + includeFilename + " HTTP status code: " + includeResponse.getStatusLine().getStatusCode());
+                    } else if (includeResponse.getEntity().getContent() == null) {
+                        LOGGER.warn("Null include from " + includeFilename);
+                    } else {
+                        final String nextDataString = EntityUtils.toString(includeResponse.getEntity());
+                        if (JsonUtil.isBlankJson(nextDataString)) {
+                            LOGGER.warn("Empty include from " + includeFilename);
+                        } else {
+                            JSONObject nextData = new JSONObject(nextDataString);
+                            loadIncludedPackages(repoRoot, nextData, false);
+                        }
+                    }
+                } catch (IOException e) {
+                    LOGGER.error("Error retrieving include from " + includeFilename, e);
+                    handleRequestException(LOGGER, e);
+                }
+            });
+        }
     }
 
     private MetaModel analyzeFromMetadataUrl(final MetaModel meta, final Component component, final String packageMetaDataPathPattern) {
@@ -193,7 +245,7 @@ public class ComposerMetaAnalyzer extends AbstractMetaAnalyzer {
                 return meta;
             }
             JSONObject metadataJson = new JSONObject(metadataString);
-            final String expectedResponsePackage = component.getPurl().getNamespace() + "/" + component.getPurl().getName();
+            final String expectedResponsePackage = getComposerPackageName(component);
             final JSONObject responsePackages = metadataJson.getJSONObject("packages");
 
             if (!responsePackages.has(expectedResponsePackage)) {
@@ -206,12 +258,16 @@ public class ComposerMetaAnalyzer extends AbstractMetaAnalyzer {
             } else {
                 return analyzePackageVersions(meta, component, responsePackages.getJSONObject(expectedResponsePackage));
             }
-        } catch (IOException ex) {
-            handleRequestException(LOGGER, ex);
-        } catch (Exception ex) {
-            throw new MetaAnalyzerException(ex);
+        } catch (IOException e) {
+            handleRequestException(LOGGER, e);
+        } catch (Exception e) {
+            throw new MetaAnalyzerException(e);
         }
         return meta;
+    }
+
+    private String getComposerPackageName(final Component component) {
+        return component.getPurl().getNamespace() + "/" + component.getPurl().getName();
     }
 
     private JSONObject expandPackageVersions(final JSONArray packageVersions) {
@@ -227,6 +283,17 @@ public class ComposerMetaAnalyzer extends AbstractMetaAnalyzer {
         return versionedPackages;
     }
 
+    private JSONObject expandPackages(JSONObject packages) {
+        JSONObject result = new JSONObject();
+        packages.names().forEach(name -> {
+            String packageName = (String)name;
+            JSONArray packageVersionsMinified = packages.getJSONArray(packageName);
+            JSONObject packageVersions = expandPackageVersions(packageVersionsMinified);
+            result.put(packageName, packageVersions);
+        });
+        return result;
+    }
+
     private MetaModel analyzePackageVersions(final MetaModel meta, Component component, JSONObject packageVersions) {
         final ComparableVersion latestVersion = new ComparableVersion(stripLeadingV(component.getPurl().getVersion()));
         final DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX");
@@ -240,7 +307,12 @@ public class ComposerMetaAnalyzer extends AbstractMetaAnalyzer {
                 return;
             }
 
-            final String version_normalized = packageVersion.getString("version_normalized");
+            // Some (old?) repositories like composer.amasty.com/enterprise do not include a 'version_normalized' field
+            String version_normalized = packageVersion.getString("version");
+            if (packageVersion.has("version_normalized")) {
+                version_normalized = packageVersion.getString("version_normalized");
+            }
+
             ComparableVersion currentComparableVersion = new ComparableVersion(version_normalized);
             if (currentComparableVersion.compareTo(latestVersion) < 0) {
                 // smaller version can be skipped
@@ -259,7 +331,7 @@ public class ComposerMetaAnalyzer extends AbstractMetaAnalyzer {
                 }
             } else {
                 //TODO some repositories like packages.drupal.org include a 'dateStamp' field, example 1700068743
-                // Some repositories like packages.drupal.org do not include the name field for a version, so print purl
+                // Some repositories like packages.drupal.org and composer.amasty.com/entprise do not include the name field for a version, so print purl
                 LOGGER.warn("Field 'time' not present in metadata for " + component.getPurl());
             }
         });
@@ -279,5 +351,9 @@ public class ComposerMetaAnalyzer extends AbstractMetaAnalyzer {
         return s.startsWith("v") || s.startsWith("V")
                 ? s.substring(1)
                 : s;
+    }
+
+    private static boolean isMinified(JSONObject data) {
+        return data.has("minified") && data.getString("minified").equals("composer/2.0");
     }
 }
