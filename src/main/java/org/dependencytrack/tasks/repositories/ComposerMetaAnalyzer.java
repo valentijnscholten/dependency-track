@@ -258,6 +258,11 @@ public class ComposerMetaAnalyzer extends AbstractMetaAnalyzer {
         final String composerPackageMetadataFilename = packageMetaDataPathPattern.replaceAll("%package%",getComposerPackageName(component));
         final String url = UriBuilder.fromUri(baseUrl).path(composerPackageMetadataFilename).build().toString();
         try (final CloseableHttpResponse response = processHttpRequest(url)) {
+            if (response.getStatusLine().getStatusCode() == HttpStatus.SC_NOT_FOUND) {
+                // 404s are valid responses, as the package might not exist in the repository
+                return meta;
+            }
+
             if (response.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
                 handleUnexpectedHttpResponse(LOGGER, url, response.getStatusLine().getStatusCode(), response.getStatusLine().getReasonPhrase(), component);
                 return meta;
@@ -278,7 +283,7 @@ public class ComposerMetaAnalyzer extends AbstractMetaAnalyzer {
                 return meta;
             }
 
-            if (metadataJson.has("minified") && metadataJson.getString("minified").equals("composer/2.0")) {
+            if (isMinified(metadataJson)) {
                 return analyzePackageVersions(meta, component, expandPackageVersions(responsePackages.getJSONArray(expectedResponsePackage)));
             } else {
                 return analyzePackageVersions(meta, component, responsePackages.getJSONObject(expectedResponsePackage));

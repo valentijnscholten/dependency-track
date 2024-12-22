@@ -566,7 +566,7 @@ public class ComposerMetaAnalyzerTest {
                     org.mockserver.verify.VerificationTimes.exactly(1)
             );
 
-            }
+        }
 
     @Test
     public void testAnalyzerDrupalV2NoTimeWithAvailablePackagePatterns() throws Exception {
@@ -621,8 +621,65 @@ public class ComposerMetaAnalyzerTest {
                         .withMethod("GET"),
                 org.mockserver.verify.VerificationTimes.exactly(2)
         );
+        }
 
-}
+        @Test
+        public void testAnalyzerAvailablePackages() throws Exception {
+                Component component = new Component();
+                ComposerMetaAnalyzer analyzer = new ComposerMetaAnalyzer();
+
+                component.setPurl(new PackageURL("pkg:composer/io/captain-hook@v0.0.0"));
+                final File packagistFile = getPackageResourceFile("composer.available.com", "io", "captain-hook");
+                final File packagistRepoRootFile = getRepoResourceFile("composer.available.com", "packages");
+
+                analyzer.setRepositoryBaseUrl(String.format("http://localhost:%d", mockServer.getPort()));
+                @SuppressWarnings("resource")
+                MockServerClient mockClient = new MockServerClient("localhost", mockServer.getPort());
+                mockClient.when(
+                                        request()
+                                                .withMethod("GET")
+                                                .withPath("/packages.json")
+                                )
+                                .respond(
+                                        response()
+                                                .withStatusCode(200)
+                                                .withHeader(HttpHeaders.CONTENT_TYPE, "application/json")
+                                                .withBody(getTestData(packagistRepoRootFile))
+                                );
+
+                mockClient.when(
+                                        request()
+                                                .withMethod("GET")
+                                                .withPath("/repository/p2/io/captain-hook.json")
+                                )
+                                .respond(
+                                        response()
+                                                .withStatusCode(200)
+                                                .withHeader(HttpHeaders.CONTENT_TYPE, "application/json")
+                                                .withBody(getTestData(packagistFile))
+                                );
+
+                MetaModel metaModel = analyzer.analyze(component);
+
+                Assert.assertEquals("v1.2.0", metaModel.getLatestVersion());
+                Assert.assertEquals(
+                        new SimpleDateFormat("yyyy-MM-dd HH:mm:ss XXX").parse("2024-10-11 08:11:39 Z"),
+                        metaModel.getPublishedTimestamp()
+                );
+
+                component.setPurl(new PackageURL("pkg:composer/phpunit/phpunit@v0.0.0"));
+                MetaModel metaModel2 = analyzer.analyze(component);
+
+                Assert.assertNull(metaModel2.getLatestVersion());
+                Assert.assertNull(metaModel2.getPublishedTimestamp());
+
+                // no calls should have been made for non-matching package
+                mockClient.verify(
+                        request()
+                                .withMethod("GET"),
+                        org.mockserver.verify.VerificationTimes.exactly(2)
+                );
+       }
 
     /*
      * This case no longer happens in the composer v2 repositories. It now returns a 404 for all examples from #2134
