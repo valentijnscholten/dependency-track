@@ -39,6 +39,7 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.packageurl.PackageURL;
 
 import alpine.common.logging.Logger;
+import jakarta.ws.rs.core.UriBuilder;
 
 /**
  * An IMetaAnalyzer implementation that supports Composer.
@@ -101,20 +102,37 @@ public class ComposerMetaAnalyzer extends AbstractMetaAnalyzer {
      * {@inheritDoc}
      */
     public MetaModel analyze(final Component component) {
-        if (!baseUrl.endsWith("/")) {
-            baseUrl = baseUrl + "/";
-        }
-
-        MetaModel meta = new MetaModel(component);
+        final MetaModel meta = new MetaModel(component);
+        final String composerPackageName = getComposerPackageName(component);
         if (component.getPurl() == null) {
             return meta;
         }
 
         final JSONObject repoRoot = getRepoRoot();
-
         if (repoRoot == null) {
             // absence of packages.json shouldn't happen, but let's try to get metadata as we did in <=4.12.2
             return analyzeFromMetadataUrl(meta, component, PACKAGE_META_DATA_PATH_PATTERN_V1);
+        }
+
+        // Available packages is finite, so we can use it to determine if the package exists in this repository
+        if (repoRoot.has("available-packages")) {
+            final JSONArray availablePackages = repoRoot.getJSONArray("available-packages");
+            if (!availablePackages.toList().contains(getComposerPackageName(component))) {
+                return meta;
+            }
+        }
+
+        if (repoRoot.has("available-package-patterns")) {
+            final JSONArray availablePackagePatterns = repoRoot.getJSONArray("available-package-patterns");
+            //handle regex same as Composer does in its code
+            boolean found = availablePackagePatterns.toList().stream()
+                .map(Object::toString)
+                .map(pattern -> "(?i)^%s$".formatted(pattern.replaceAll("\\*", ".*")))
+                .anyMatch(pattern -> composerPackageName.matches(pattern));
+
+            if (!found) {
+                return meta;
+            }
         }
 
         if (repoRoot.has("metadata-url")) {
@@ -148,8 +166,7 @@ public class ComposerMetaAnalyzer extends AbstractMetaAnalyzer {
     private JSONObject getRepoRoot() {
         // Code mimicksed from https://github.com/composer/composer/blob/main/src/Composer/Repository/ComposerRepository.php
         // Retrieve packages.json file, which must be present even for V1 repositories
-        final String packageJsonUrl = baseUrl + "/packages.json";
-
+        String packageJsonUrl = UriBuilder.fromUri(baseUrl).path("packages.json").build().toString();
         JSONObject repoRoot = REPO_ROOT_CACHE.getIfPresent(packageJsonUrl);
         if (repoRoot == null) {
             try (final CloseableHttpResponse packageJsonResponse = processHttpRequest(packageJsonUrl)) {
@@ -211,7 +228,7 @@ public class ComposerMetaAnalyzer extends AbstractMetaAnalyzer {
             JSONObject includes = data.getJSONObject("includes");
             includes.names().forEach(name -> {
                 String includeFilename = (String)name;
-                final String includeUrl = baseUrl + includeFilename;
+                String includeUrl = UriBuilder.fromUri(baseUrl).path(includeFilename).build().toString();
                 try (final CloseableHttpResponse includeResponse = processHttpRequest(includeUrl)) {
                     if (includeResponse.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
                         LOGGER.warn("Failed to retrieve include " + includeFilename + " HTTP status code: " + includeResponse.getStatusLine().getStatusCode());
@@ -238,10 +255,8 @@ public class ComposerMetaAnalyzer extends AbstractMetaAnalyzer {
     }
 
     private MetaModel analyzeFromMetadataUrl(final MetaModel meta, final Component component, final String packageMetaDataPathPattern) {
-        String namespace = urlEncode(component.getPurl().getNamespace());
-        String name = urlEncode(component.getPurl().getName());
-
-        final String url = baseUrl + packageMetaDataPathPattern.replaceAll("%package%", "%s/%s".formatted(namespace, name));
+        final String composerPackageMetadataFilename = packageMetaDataPathPattern.replaceAll("%package%",getComposerPackageName(component));
+        final String url = UriBuilder.fromUri(baseUrl).path(composerPackageMetadataFilename).build().toString();
         try (final CloseableHttpResponse response = processHttpRequest(url)) {
             if (response.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
                 handleUnexpectedHttpResponse(LOGGER, url, response.getStatusLine().getStatusCode(), response.getStatusLine().getReasonPhrase(), component);
@@ -281,7 +296,6 @@ public class ComposerMetaAnalyzer extends AbstractMetaAnalyzer {
     }
 
     private JSONObject expandPackageVersions(final JSONArray packageVersions) {
-        JSONObject versionedPackages;
         // Convert JSONArray to JSONObject with "version" as the key to align with existing v1 code (Composer does this as well)
         final JSONObject finalVersionedPackages = new JSONObject();
         packageVersions.forEach(item -> {
@@ -289,8 +303,7 @@ public class ComposerMetaAnalyzer extends AbstractMetaAnalyzer {
             String version = composerPackage.getString("version");
             finalVersionedPackages.put(version, composerPackage);
         });
-        versionedPackages = finalVersionedPackages;
-        return versionedPackages;
+        return finalVersionedPackages;
     }
 
     private JSONObject expandPackages(JSONObject packages) {

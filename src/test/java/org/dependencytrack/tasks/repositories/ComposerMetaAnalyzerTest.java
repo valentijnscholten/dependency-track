@@ -569,7 +569,7 @@ public class ComposerMetaAnalyzerTest {
             }
 
     @Test
-    public void testAnalyzerDrupalV2NoTime() throws Exception {
+    public void testAnalyzerDrupalV2NoTimeWithAvailablePackagePatterns() throws Exception {
         Component component = new Component();
         ComposerMetaAnalyzer analyzer = new ComposerMetaAnalyzer();
 
@@ -608,6 +608,20 @@ public class ComposerMetaAnalyzerTest {
 
         Assert.assertEquals("2.2.1", metaModel.getLatestVersion());
         Assert.assertEquals(null, metaModel.getPublishedTimestamp());
+
+        component.setPurl(new PackageURL("pkg:composer/phpunit/phpunit@v2.0.0"));
+        MetaModel metaModel2 = analyzer.analyze(component);
+
+        Assert.assertNull(metaModel2.getLatestVersion());
+        Assert.assertNull(metaModel2.getPublishedTimestamp());
+
+        // no calls should have been made for non-matching package
+        mockClient.verify(
+                request()
+                        .withMethod("GET"),
+                org.mockserver.verify.VerificationTimes.exactly(2)
+        );
+
 }
 
     /*
