@@ -395,17 +395,6 @@ public class ComposerMetaAnalyzer extends AbstractMetaAnalyzer {
         return meta;
     }
 
-    /**
-     * Clears the cache of repository root metadata.
-     * Needed in unit tests as we currently only have url as a cache key and all
-     * unit tests run against localhost...
-     */
-    protected static void clearRepoRootCache() {
-        // TODO Check if this can be done differently, or we can add extra information
-        // to the analyzer to have a better cache key
-        REPO_ROOT_CACHE.invalidateAll();
-    }
-
     private static String stripLeadingV(String s) {
         return s.startsWith("v") || s.startsWith("V")
                 ? s.substring(1)
