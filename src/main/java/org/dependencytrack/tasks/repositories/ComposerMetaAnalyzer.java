@@ -349,6 +349,7 @@ public class ComposerMetaAnalyzer extends AbstractMetaAnalyzer {
 
         packageVersions.names().forEach(item -> {
             JSONObject packageVersion = packageVersions.getJSONObject((String) item);
+            // Sometimes the JSON key differs from the the version inside the JSON value. The latter is leading.
             String version = packageVersion.getString("version");
             if (version.startsWith("dev-") || version.endsWith("-dev")) {
                 // dev versions are excluded, since they are not pinned but a VCS-branch.
