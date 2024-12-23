@@ -68,12 +68,6 @@ public class ComposerMetaAnalyzer extends AbstractMetaAnalyzer {
      * Some of the properties of the root package.json are documented at
      * https://github.com/composer/composer/blob/main/doc/05-repositories.md
      * Properties to investigate / implement:
-     * - packages: very relevant as some repositories only provide their metadata
-     * this way (packages.shopware.com)
-     * - includes: very relevant as some repositories only provide their metadata
-     * this way (packages.mirasvit.com, composer.magepal.com)
-     * - available-packages and available-package-patterns: relevant to limit
-     * traffic to specific repositories
      *
      * - security-advisories: very relevant, but only in a VulnerabilityAnalyzer (or
      * mirrored VulnerabilitySource) context
