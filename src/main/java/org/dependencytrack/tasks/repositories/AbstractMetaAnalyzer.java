@@ -53,8 +53,12 @@ public abstract class AbstractMetaAnalyzer implements IMetaAnalyzer {
     protected String username;
     protected String password;
 
+    /**
+     * Optionally set repositoryId that can be used in a cache key for example.
+     * @param repositoryId
+     */
     public void setRepositoryID(String repositoryId) {
-        repositoryId = repositoryId.trim();
+        this.repositoryId = repositoryId.trim();
     }
 
     /**

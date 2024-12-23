@@ -54,7 +54,6 @@ public class ComposerMetaAnalyzerTest {
 
         @Before
         public void setUp() {
-                ComposerMetaAnalyzer.clearRepoRootCache();
                 mockServer.reset();
         }
 
