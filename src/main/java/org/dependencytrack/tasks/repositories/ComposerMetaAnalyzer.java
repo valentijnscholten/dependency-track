@@ -61,7 +61,7 @@ public class ComposerMetaAnalyzer extends AbstractMetaAnalyzer {
     private static final String PACKAGE_META_DATA_PATH_PATTERN_V1 = "/p/%package%.json";
 
     private static final Cache<String, JSONObject> REPO_ROOT_CACHE = Caffeine.newBuilder()
-            .expireAfterWrite(10, TimeUnit.MINUTES)
+            .expireAfterWrite(1, TimeUnit.HOURS)
             .build();
 
     /**
