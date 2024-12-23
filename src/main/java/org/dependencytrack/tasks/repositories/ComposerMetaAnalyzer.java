@@ -127,9 +127,9 @@ public class ComposerMetaAnalyzer extends AbstractMetaAnalyzer {
                 // According to https://github.com/composer/composer/blob/fb397acaa0648ba2668893e4b786af6465a41696/doc/05-repositories.md?plain=1#L197
                 // available-packages should contain ALL the packages in the repo.
                 // But in the Composer implementation the patterns are consulted even if available-packages is present and doesn't contain the package
-                // if (!repoRoot.has("available-package-patterns")) {
+                if (!repoRoot.has("available-package-patterns")) {
                     return meta;
-                // }
+                }
             }
         }
 
