@@ -60,6 +60,17 @@ public class RepositoryQueryManager extends QueryManager implements IQueryManage
         super(pm, request);
     }
 
+    //TODO VS remove getRepository?
+    /**
+     * Returns repository by identifier
+     *
+     * @return Repository
+     */
+    public Repository getRepository(String identifier) {
+        final Query<Repository> query = pm.newQuery(Repository.class, "identifier == :identifier");
+        query.setParameters(identifier);
+        return executeAndCloseUnique(query);
+    }
 
     /**
      * Returns a list of all repositories.

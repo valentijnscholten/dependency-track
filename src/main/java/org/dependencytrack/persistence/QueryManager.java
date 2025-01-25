@@ -1198,6 +1198,10 @@ public class QueryManager extends AlpineQueryManager {
         return getRepositoryQueryManager().getRepositories();
     }
 
+    public Repository getRepository(String identifier) {
+        return getRepositoryQueryManager().getRepository(identifier);
+    }
+
     public List<Repository> getAllRepositories() {
         return getRepositoryQueryManager().getAllRepositories();
     }

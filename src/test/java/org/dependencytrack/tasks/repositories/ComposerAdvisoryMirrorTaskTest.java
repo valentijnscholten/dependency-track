@@ -20,15 +20,23 @@ import static org.dependencytrack.model.ConfigPropertyConstants.VULNERABILITY_SO
 import static org.dependencytrack.model.ConfigPropertyConstants.VULNERABILITY_SOURCE_NVD_ENABLED;
 import static org.junit.Assert.assertNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockserver.model.HttpRequest.request;
+import static org.mockserver.model.HttpResponse.response;
 
+import java.io.File;
 import java.io.IOException;
+import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.function.Consumer;
 
 import org.apache.commons.lang3.StringUtils;
+import org.apache.http.HttpHeaders;
 import org.dependencytrack.PersistenceCapableTest;
+import org.dependencytrack.model.Component;
+import org.dependencytrack.model.Repository;
+import org.dependencytrack.model.RepositoryType;
 import org.dependencytrack.model.Severity;
 import org.dependencytrack.model.Vulnerability;
 import org.dependencytrack.model.VulnerabilityAlias;
@@ -36,15 +44,25 @@ import org.dependencytrack.model.VulnerableSoftware;
 import org.dependencytrack.parser.composer.ComposerAdvisoryParser;
 import org.dependencytrack.parser.composer.ComposerAdvisoryParserTest;
 import org.dependencytrack.parser.composer.model.ComposerAdvisory;
+import org.json.JSONObject;
+import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
+import org.mockserver.client.MockServerClient;
+import org.mockserver.integration.ClientAndServer;
 
 import com.github.packageurl.PackageURL;
 
 import alpine.model.IConfigProperty;
 
+
 public class ComposerAdvisoryMirrorTaskTest extends PersistenceCapableTest {
+
+    private static ClientAndServer mockServer;
+
+    private static final String CONFIG_MIRROR_ENABLED_WITH_ALIAS = "{\"advisoryMirroringEnabled\": true, \"advisoryAliasSyncEnabled\": true}";
 
     @Before
     public void setUp() {
@@ -58,6 +76,18 @@ public class ComposerAdvisoryMirrorTaskTest extends PersistenceCapableTest {
                 "true",
                 IConfigProperty.PropertyType.BOOLEAN,
                 "");
+
+        mockServer.reset();
+    }
+
+    @BeforeClass
+    public static void beforeClass() {
+            mockServer = ClientAndServer.startClientAndServer(1080);
+    }
+
+    @AfterClass
+    public static void afterClass() {
+            mockServer.stop();
     }
 
     @Test
@@ -65,42 +95,62 @@ public class ComposerAdvisoryMirrorTaskTest extends PersistenceCapableTest {
         String longTitle = "In uvc_scan_chain_forward of uvc_driver.c, there is a possible linked list corruption due to an unusual root cause. This could lead to local escalation of privilege in the kernel with no additional execution privileges needed. User interaction is not needed for exploitation.";
         ComposerAdvisoryMirrorTask task = new ComposerAdvisoryMirrorTask();
         ComposerAdvisory composerAdvisory = ComposerAdvisoryParser
-                .parseAdvisory(ComposerAdvisoryParserTest.vulnFriends);
+                .parseAdvisory(ComposerAdvisoryParserTest.VULN_FOP);
         composerAdvisory.setTitle(longTitle);
         Vulnerability vuln = task.mapComposerAdvisoryToVulnerability(composerAdvisory);
         Assert.assertEquals(vuln.getTitle(), StringUtils.abbreviate(longTitle, "...", 255));
 
         String longAffected = "\\u003E=8.0.0,\\u003C8.1.0|\\u003E=8.1.0,\\u003C8.2.0|\\u003E=8.2.0,\\u003C8.3.0|\\u003E=8.3.0,\\u003C8.4.0|\\u003E=8.4.0,\\u003C8.5.0|\\u003E=8.5.0,\\u003C8.6.0|\\u003E=8.6.0,\\u003C8.7.0|\\u003E=8.7.0,\\u003C8.8.0|\\u003E=8.8.0,\\u003C8.9.0|\\u003E=8.9.0,\\u003C9.0.0|\\u003E=9.0.0,\\u003C9.1.0|\\u003E=9.1.0,\\u003C9.2.0|\\u003E=9.2.0,\\u003C9.3.0|\\u003E=9.3.0,\\u003C9.4.0|\\u003E=9.4.0,\\u003C9.5.0|\\u003E=9.5.0,\\u003C10.0.0|\\u003E=10.0.0,\\u003C10.1.0|\\u003E=10.1.0,\\u003C10.1.8|\\u003E=10.2.0,\\u003C10.2.2";
-        composerAdvisory = ComposerAdvisoryParser.parseAdvisory(ComposerAdvisoryParserTest.vulnFriends);
+        composerAdvisory = ComposerAdvisoryParser.parseAdvisory(ComposerAdvisoryParserTest.VULN_FOP);
         composerAdvisory.setAffectedVersionsCve(longAffected);
         vuln = task.mapComposerAdvisoryToVulnerability(composerAdvisory);
         Assert.assertEquals(vuln.getVulnerableVersions(), StringUtils.abbreviate(longAffected, "...", 255));
     }
 
     @Test
-    public void testExtractSourceOfVulnerability() {
+    public void testExtractSourceDrupal() {
         Vulnerability.Source source1 = ComposerAdvisoryMirrorTask
-                .extractSource(ComposerAdvisoryParser.parseAdvisory(ComposerAdvisoryParserTest.vulnDrupal));
+                .extractSource(ComposerAdvisoryParser.parseAdvisory(ComposerAdvisoryParserTest.VULN_DRUPAL));
         Assert.assertNotNull(source1);
         Assert.assertEquals(Vulnerability.Source.DRUPAL, source1);
+    }
 
+    @Test
+    public void testExtractSourceFriendsOfPhp() {
         Vulnerability.Source source2 = ComposerAdvisoryMirrorTask
-                .extractSource(ComposerAdvisoryParser.parseAdvisory(ComposerAdvisoryParserTest.vulnFriends));
+                .extractSource(ComposerAdvisoryParser.parseAdvisory(ComposerAdvisoryParserTest.VULN_FOP));
         Assert.assertNotNull(source2);
-        Assert.assertEquals(Vulnerability.Source.COMPOSER, source2);
+        Assert.assertEquals(Vulnerability.Source.GITHUB, source2);
+    }
 
+    @Test
+    public void testExtractSourceGHSA() {
         Vulnerability.Source source3 = ComposerAdvisoryMirrorTask
-                .extractSource(ComposerAdvisoryParser.parseAdvisory(ComposerAdvisoryParserTest.vulnGHSA));
+                .extractSource(ComposerAdvisoryParser.parseAdvisory(ComposerAdvisoryParserTest.VULN_GHSA));
         Assert.assertNotNull(source3);
-        Assert.assertEquals(Vulnerability.Source.COMPOSER, source3);
+        Assert.assertEquals(Vulnerability.Source.GITHUB, source3);
+    }
 
+    @Test
+    public void testExtractSourceFriendsOfPhpCVE() {
         Vulnerability.Source source4 = ComposerAdvisoryMirrorTask
-                .extractSource(ComposerAdvisoryParser.parseAdvisory(ComposerAdvisoryParserTest.vulnFriendsNoCve));
+                .extractSource(ComposerAdvisoryParser.parseAdvisory(ComposerAdvisoryParserTest.VULN_FOP_CVE));
         Assert.assertNotNull(source4);
-        Assert.assertEquals(Vulnerability.Source.COMPOSER, source4);
+        Assert.assertEquals(Vulnerability.Source.NVD, source4);
+    }
 
+    @Test
+    public void testExtractSourceFriendsOfPhpNoCVE() {
+        Vulnerability.Source source4 = ComposerAdvisoryMirrorTask
+                .extractSource(ComposerAdvisoryParser.parseAdvisory(ComposerAdvisoryParserTest.VULN_FOP_NO_CVE));
+        Assert.assertNotNull(source4);
+        Assert.assertEquals(Vulnerability.Source.GITHUB, source4);
+    }
+
+    @Test
+    public void testExtractSourceComposer() {
         Vulnerability.Source source5 = ComposerAdvisoryMirrorTask
-                .extractSource(ComposerAdvisoryParser.parseAdvisory(ComposerAdvisoryParserTest.vulnComposer));
+                .extractSource(ComposerAdvisoryParser.parseAdvisory(ComposerAdvisoryParserTest.VULN_COMPOSER));
         Assert.assertNotNull(source5);
         Assert.assertEquals(Vulnerability.Source.COMPOSER, source5);
     }
@@ -108,7 +158,7 @@ public class ComposerAdvisoryMirrorTaskTest extends PersistenceCapableTest {
     @Test
     public void testDrupalAffectedVersionMapping() throws IOException {
         ComposerAdvisory vuln = ComposerAdvisoryParser
-                .parseAdvisory(ComposerAdvisoryParserTest.vulnDrupal);
+                .parseAdvisory(ComposerAdvisoryParserTest.VULN_DRUPAL);
         ComposerAdvisoryMirrorTask task = new ComposerAdvisoryMirrorTask();
         List<VulnerableSoftware> mapVulnerabilityToVulnerableSoftware = task.mapVulnerabilityToVulnerableSoftware(qm,
                 vuln);
@@ -127,7 +177,7 @@ public class ComposerAdvisoryMirrorTaskTest extends PersistenceCapableTest {
     @Test
     public void testPackagistAffectedVersionMapping() throws IOException {
         ComposerAdvisory vuln = ComposerAdvisoryParser
-                .parseAdvisory(ComposerAdvisoryParserTest.vulnFriends);
+                .parseAdvisory(ComposerAdvisoryParserTest.VULN_FOP);
         ComposerAdvisoryMirrorTask task = new ComposerAdvisoryMirrorTask();
         List<VulnerableSoftware> mapVulnerabilityToVulnerableSoftware = task.mapVulnerabilityToVulnerableSoftware(qm,
                 vuln);
@@ -164,7 +214,7 @@ public class ComposerAdvisoryMirrorTaskTest extends PersistenceCapableTest {
     }
 
     public void doDrupalAdvisory(boolean aliasSync) throws Exception {
-        ComposerAdvisory advisory = ComposerAdvisoryParser.parseAdvisory(ComposerAdvisoryParserTest.vulnDrupal);
+        ComposerAdvisory advisory = ComposerAdvisoryParser.parseAdvisory(ComposerAdvisoryParserTest.VULN_DRUPAL);
         Assert.assertNotNull(advisory);
 
         ComposerAdvisoryMirrorTask task = new ComposerAdvisoryMirrorTask();
@@ -230,7 +280,7 @@ public class ComposerAdvisoryMirrorTaskTest extends PersistenceCapableTest {
 
     //TODO VS Should FriendsOfPHP become its own source? It has no own Id.
     public void doFriends(boolean aliasSync) throws Exception {
-        ComposerAdvisory advisory = ComposerAdvisoryParser.parseAdvisory(ComposerAdvisoryParserTest.vulnFriends);
+        ComposerAdvisory advisory = ComposerAdvisoryParser.parseAdvisory(ComposerAdvisoryParserTest.VULN_FOP);
         Assert.assertNotNull(advisory);
 
         ComposerAdvisoryMirrorTask task = new ComposerAdvisoryMirrorTask();
@@ -301,7 +351,7 @@ public class ComposerAdvisoryMirrorTaskTest extends PersistenceCapableTest {
     }
 
     public void doFriendsNoCve(boolean aliasSync) throws Exception {
-        ComposerAdvisory advisory = ComposerAdvisoryParser.parseAdvisory(ComposerAdvisoryParserTest.vulnFriendsNoCve);
+        ComposerAdvisory advisory = ComposerAdvisoryParser.parseAdvisory(ComposerAdvisoryParserTest.VULN_FOP_NO_CVE);
         Assert.assertNotNull(advisory);
 
         ComposerAdvisoryMirrorTask task = new ComposerAdvisoryMirrorTask();
@@ -407,7 +457,7 @@ public class ComposerAdvisoryMirrorTaskTest extends PersistenceCapableTest {
     // """);
 
     public void doGHSAAdvisory(boolean aliasSync) throws Exception {
-        ComposerAdvisory advisory = ComposerAdvisoryParser.parseAdvisory(ComposerAdvisoryParserTest.vulnGHSA);
+        ComposerAdvisory advisory = ComposerAdvisoryParser.parseAdvisory(ComposerAdvisoryParserTest.VULN_GHSA);
         Assert.assertNotNull(advisory);
 
         ComposerAdvisoryMirrorTask task = new ComposerAdvisoryMirrorTask();
@@ -468,5 +518,67 @@ public class ComposerAdvisoryMirrorTaskTest extends PersistenceCapableTest {
     // TODO VS Test GHSA with existing vuln
 
     // TODO VS Test repository enabled + vul mirror enabled
+
+    @Test
+    public void testPackagistAdvisories() throws Exception {
+        ComposerAdvisoryMirrorTask task = new ComposerAdvisoryMirrorTask();
+
+        final File advisoryFile = ComposerMetaAnalyzerTest.getRepoResourceFile("repo.packagist.org", "advisories");
+        final File packagistRepoRootFile = ComposerMetaAnalyzerTest.getRepoResourceFile("repo.packagist.org", "packages");
+
+        @SuppressWarnings("resource")
+        MockServerClient mockClient = new MockServerClient("localhost", mockServer.getPort());
+        String mockUrl = String.format("http://localhost:%d", mockServer.getPort());
+        mockClient.when(
+                        request()
+                                        .withMethod("GET")
+                                        .withPath("/packages.json"))
+                        .respond(
+                                        response()
+                                                        .withStatusCode(200)
+                                                        .withHeader(HttpHeaders.CONTENT_TYPE,
+                                                                        "application/json")
+                                                        .withBody(getRepoRootForMock(packagistRepoRootFile, mockUrl)));
+
+        mockClient.when(
+                        request()
+                                        .withMethod("GET")
+                                        .withPath("/api/security-advisories")
+                                        .withQueryStringParameter("updatedSince", "100")
+                                        )
+                        .respond(
+                                        response()
+                                                        .withStatusCode(200)
+                                                        .withHeader(HttpHeaders.CONTENT_TYPE,
+                                                                        "application/json")
+                                                        .withBody(new String(ComposerMetaAnalyzerTest.getTestData(advisoryFile))));
+
+        Repository repo = qm.createRepository(RepositoryType.COMPOSER, "packagist", mockUrl, true, false, false, null, null, CONFIG_MIRROR_ENABLED_WITH_ALIAS);
+        boolean mirroredWithoutErrors = task.mirrorAdvisories(qm, repo);
+
+        Assert.assertTrue(mirroredWithoutErrors);
+
+        Assert.assertEquals(10, qm.getVulnerabilities().getTotal());
+
+        //Vulnerabilities should not have PKSA ids if other IDs are present
+        Assert.assertNull(qm.getVulnerabilityByVulnId(Vulnerability.Source.COMPOSER, "PKSA-q4rt-5vfc-wksb"));
+        Vulnerability vulnerability1 = qm.getVulnerabilityByVulnId(Vulnerability.Source.GITHUB, "GHSA-2697-96mv-3gfm");
+
+        Assert.assertNotNull(vulnerability1);
+
+        Assert.assertEquals("GHSA-2697-96mv-3gfm", vulnerability1.getVulnId());
+        Assert.assertEquals("CVE-2024-50701", vulnerability1.getAliases().get(0).getCveId());
+
+
+    }
+
+    private String getRepoRootForMock(File file, String mockUrl) throws Exception {
+        String data = new String(ComposerMetaAnalyzerTest.getTestData(file));
+        JSONObject json = new JSONObject(data);
+
+        json.getJSONObject("security-advisories").put("api-url", mockUrl + "/api/security-advisories");
+        return json.toString();
+    }
+
 
 }

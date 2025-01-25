@@ -9,7 +9,7 @@ import org.junit.Test;
 
 public class ComposerAdvisoryParserTest {
 
-    public final static JSONObject vulnDrupal = new JSONObject("""
+    public final static JSONObject VULN_DRUPAL = new JSONObject("""
               {
                 "advisoryId": "SA-CORE-2018-003",
                 "packageName": "drupal/core",
@@ -28,7 +28,7 @@ public class ComposerAdvisoryParserTest {
               }
             """);
 
-    public final static JSONObject vulnGHSA = new JSONObject("""
+    public final static JSONObject VULN_GHSA = new JSONObject("""
                 {
                   "advisoryId": "PKSA-228k-hrjg-43zp",
                   "packageName": "magento/community-edition",
@@ -50,7 +50,7 @@ public class ComposerAdvisoryParserTest {
                 },
             """);
 
-    public final static JSONObject vulnFriendsNoCve = new JSONObject(
+    public final static JSONObject VULN_FOP_NO_CVE = new JSONObject(
             """
                     {
                       "advisoryId": "PKSA-n8hw-tywm-xrh7",
@@ -77,7 +77,7 @@ public class ComposerAdvisoryParserTest {
                     }
                       """);
 
-    public final static JSONObject vulnFriends = new JSONObject(
+    public final static JSONObject VULN_FOP = new JSONObject(
             """
                     {
                       "advisoryId": "PKSA-p9s6-dthp-ws2d",
@@ -104,15 +104,40 @@ public class ComposerAdvisoryParserTest {
                     },
                     """);
 
+        // Theoretical case to prepare for other repositories
+        public final static JSONObject VULN_FOP_CVE = new JSONObject(
+            """
+                    {
+                      "advisoryId": "PKSA-p9s6-dthp-ws2d",
+                      "packageName": "simplesamlphp/saml2",
+                      "remoteId": "simplesamlphp/saml2/CVE-2016-9814.yaml",
+                      "title": "Incorrect signature verification",
+                      "link": "https://simplesamlphp.org/security/201612-01",
+                      "cve": "CVE-2016-9814",
+                      "affectedVersions": "\u003C1.8.1|\u003E=1.9.0,\u003C1.9.1|\u003E=1.10,\u003C1.10.3|\u003E=2.0,\u003C2.3.3",
+                      "source": "FriendsOfPHP/security-advisories",
+                      "reportedAt": "2016-11-29 13:12:44",
+                      "composerRepository": "https://packagist.org",
+                      "severity": "critical",
+                      "sources": [
+                        {
+                          "name": "FriendsOfPHP/security-advisories",
+                          "remoteId": "simplesamlphp/saml2/CVE-2016-9814.yaml"
+                        }
+                      ]
+                    },
+                    """);
+
+
     // Hypothetical vulnerability to future proof our parser
-    public final static JSONObject vulnComposer = new JSONObject(
+    public final static JSONObject VULN_COMPOSER = new JSONObject(
             """
                       {
                         "advisoryId": "PKSA-m9t7-ggb8-abcd",
                         "packageName": "social/media",
                         "remoteId": null,
                         "title": "File REST resource does not properly validate",
-                        "link": "https://www.drupal.org/SA-CORE-2017-003",
+                        "link": "https://www.somesource.org/vulnerability/1234",
                         "cve": null,
                         "affectedVersions": "\u003E=8.0,\u003C8.1.0|\u003E=8.1.0,\u003C8.2.0|\u003E=8.2.0,\u003C8.3.0|\u003E=8.3.0,\u003C8.3.4",
                         "source": "somesource",
@@ -123,7 +148,7 @@ public class ComposerAdvisoryParserTest {
                       }
                     """);
 
-    public final static JSONObject vulnInvalidDateTime = new JSONObject(
+    public final static JSONObject VULN_DRUPAL_INVALID_TIME = new JSONObject(
             """
                     {
                       "advisoryId": "PKSA-n8hw-tywm-xrh7",
@@ -150,7 +175,7 @@ public class ComposerAdvisoryParserTest {
                     }
                       """);
 // TODO VS Test wildcardall versions
-    public final static JSONObject vulnWildcardAll = new JSONObject("""
+    public final static JSONObject VULN_WILDCARD_ALL = new JSONObject("""
             {
               "advisoryId": "PKSA-n8hw-tywm-xrh7",
               "packageName": "drupal/core",
@@ -178,7 +203,7 @@ public class ComposerAdvisoryParserTest {
 
 
               //TODO VS Test NoOp version
-    public final static JSONObject vulnOneVersionNoOperator = new JSONObject("""
+    public final static JSONObject VULN_NOOP_VERSION = new JSONObject("""
             {
               "advisoryId": "PKSA-n8hw-tywm-xrh7",
               "packageName": "drupal/core",
@@ -206,13 +231,13 @@ public class ComposerAdvisoryParserTest {
 
     @Test
     public void testDateTime() {
-        ComposerAdvisory vuln = ComposerAdvisoryParser.parseAdvisory(vulnInvalidDateTime);
+        ComposerAdvisory vuln = ComposerAdvisoryParser.parseAdvisory(VULN_DRUPAL_INVALID_TIME);
         Assert.assertNull(vuln.getReportedAt());
     }
 
     @Test
     public void testSources() {
-        ComposerAdvisory vuln = ComposerAdvisoryParser.parseAdvisory(vulnFriends);
+        ComposerAdvisory vuln = ComposerAdvisoryParser.parseAdvisory(VULN_FOP);
         Assert.assertEquals(2, vuln.getSources().size());
         Assert.assertTrue(vuln.getSources().containsKey("github"));
         Assert.assertEquals("GHSA-r8v4-7vwj-983x", vuln.getSources().get("github"));
@@ -222,12 +247,13 @@ public class ComposerAdvisoryParserTest {
 
     @Test
     public void testParseNoErrors() throws IOException {
-        ComposerAdvisoryParser.parseAdvisory(vulnFriends);
-        ComposerAdvisoryParser.parseAdvisory(vulnComposer);
-        ComposerAdvisoryParser.parseAdvisory(vulnDrupal);
-        ComposerAdvisoryParser.parseAdvisory(vulnGHSA);
-        ComposerAdvisoryParser.parseAdvisory(vulnFriendsNoCve);
-        ComposerAdvisoryParser.parseAdvisory(vulnInvalidDateTime);
+        ComposerAdvisoryParser.parseAdvisory(VULN_DRUPAL);
+        ComposerAdvisoryParser.parseAdvisory(VULN_DRUPAL_INVALID_TIME);
+        ComposerAdvisoryParser.parseAdvisory(VULN_GHSA);
+        ComposerAdvisoryParser.parseAdvisory(VULN_FOP);
+        ComposerAdvisoryParser.parseAdvisory(VULN_FOP_CVE);
+        ComposerAdvisoryParser.parseAdvisory(VULN_FOP_NO_CVE);
+        ComposerAdvisoryParser.parseAdvisory(VULN_COMPOSER);
     }
 
 }

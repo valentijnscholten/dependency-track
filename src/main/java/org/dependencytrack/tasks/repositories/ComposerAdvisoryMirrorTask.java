@@ -34,6 +34,7 @@ import org.dependencytrack.model.Repository;
 import org.dependencytrack.model.RepositoryType;
 import org.dependencytrack.model.Severity;
 import org.dependencytrack.model.Vulnerability;
+import org.dependencytrack.model.Vulnerability.Source;
 import org.dependencytrack.model.VulnerabilityAlias;
 import org.dependencytrack.model.VulnerableSoftware;
 import org.dependencytrack.notification.NotificationConstants;
@@ -99,8 +100,8 @@ public class ComposerAdvisoryMirrorTask implements LoggableSubscriber {
         Event.dispatch(new IndexEvent(IndexEvent.Action.COMMIT, Vulnerability.class));
     }
 
-    private boolean mirrorAdvisories(QueryManager qm, Repository repository) {
-        if (repository.isEnabled()) {
+    protected boolean mirrorAdvisories(QueryManager qm, Repository repository) {
+        if (!repository.isEnabled()) {
             return true;
         }
         boolean isAdvisoryMirroringEnabled = false;
@@ -215,20 +216,41 @@ public class ComposerAdvisoryMirrorTask implements LoggableSubscriber {
 
     private boolean shouldUpdateExistingVulnerability(Vulnerability existingVulnerability,
             Vulnerability.Source vulnerabilitySource, boolean vulnAuthoritativeSourceEnabled) {
-        // Should we just skip anything other than DRUPAL and COMPOSER? Composer repositories are only providing limit information
-        // Composeris (in DT) the authoritative source for Drupal
+        // We just skip anything other than DRUPAL and COMPOSER. Composer repositories are only providing limit information, so we rely on authoritative sources.
+        // Unless the vulnerability is not replicated (yet) by an authoritative source
         return (EnumSet.of(Vulnerability.Source.COMPOSER, Vulnerability.Source.DRUPAL).contains(vulnerabilitySource))
-                || (existingVulnerability == null) // Vuln is not replicated yet or declared by authoritative source with appropriate state
-                || (existingVulnerability != null && !vulnAuthoritativeSourceEnabled); // Vuln has been replicated but authoritative source is disabled
+                || (existingVulnerability == null);
     }
 
     public static Vulnerability.Source extractSource(ComposerAdvisory composerAdvisory) {
-        if (composerAdvisory.getAdvisoryId().startsWith("SA-CORE")
-                || composerAdvisory.getAdvisoryId().startsWith("SA-CONTRIB")) {
-            return Vulnerability.Source.DRUPAL;
-        } else {
-            return Vulnerability.Source.COMPOSER;
+        // Currently seen DRUPAL and COMPOSER, but for composer we need to look for other fields
+        Source sourceFromId = Vulnerability.Source.resolve(composerAdvisory.getAdvisoryId());
+        if (sourceFromId != null && !EnumSet.of(Vulnerability.Source.UNKNOWN, Vulnerability.Source.COMPOSER).contains(sourceFromId)) {
+            return sourceFromId;
         }
+
+        // Currently only used for GHSA and pointers to Friends Of PHP advisories, which is not a valid source
+        Source sourceFromRemoteId = Vulnerability.Source.resolve(composerAdvisory.getRemoteId());
+        if (sourceFromRemoteId != null && sourceFromRemoteId != Vulnerability.Source.UNKNOWN) {
+            return sourceFromRemoteId;
+        }
+
+        // Some Advisories from Friends Of PHP have a GHSA, which is leading
+        for (String possibleAlias : composerAdvisory.getSources().values()) {
+            Source sourceFromPossibleAlias = Vulnerability.Source.resolve(possibleAlias);
+            if (sourceFromPossibleAlias != null && sourceFromPossibleAlias != Vulnerability.Source.UNKNOWN) {
+                return sourceFromPossibleAlias;
+            }
+        }
+
+        // Use CVE, but ensure it's valid. You never know with these Composer repositories
+        Source sourceFromCve = Vulnerability.Source.resolve(composerAdvisory.getCve());
+        if (sourceFromCve != null && sourceFromCve == Vulnerability.Source.NVD) {
+            return sourceFromCve;
+        }
+
+        // Worst case we set it to Composer, which will result in a PKSA as id, similar to OSV.
+        return Vulnerability.Source.COMPOSER;
     }
 
     private VulnerabilityAlias extractAliases(ComposerAdvisory composerAdvisory) {
