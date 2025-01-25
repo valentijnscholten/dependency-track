@@ -152,7 +152,7 @@ public class ComposerAdvisoryMirrorTask implements LoggableSubscriber {
     boolean processAdvisory(QueryManager qm, final ComposerAdvisory advisory, boolean syncAliases) {
         LOGGER.debug("Synchronizing Composer advisory: " + advisory.getAdvisoryId());
 
-        final Vulnerability mappedVulnerability = mapComposerAdvisoryToVulnerability(advisory);
+        final Vulnerability mappedVulnerability = mapComposerAdvisoryToVulnerability(advisory, syncAliases);
         final List<VulnerableSoftware> vsListOld = qm.detach(qm.getVulnerableSoftwareByVulnId(
                 mappedVulnerability.getSource(), mappedVulnerability.getVulnId()));
 
@@ -183,19 +183,16 @@ public class ComposerAdvisoryMirrorTask implements LoggableSubscriber {
                         .valueOf(qm.getConfigProperty(vulnAuthoritativeSourceToggle.getGroupName(),
                                 vulnAuthoritativeSourceToggle.getPropertyName()).getPropertyValue());
         Vulnerability synchronizedVulnerability = existingVulnerability;
-        //TODO VS Only store vulnerabilities that don't have a CVE or GHSA id? plus Drupal maybe? To avoid lots of aliases for the same vulnz
+
         if (shouldUpdateExistingVulnerability(existingVulnerability, vulnerabilitySource,
                 vulnAuthoritativeSourceEnabled)) {
             synchronizedVulnerability = qm.synchronizeVulnerability(mappedVulnerability, false);
             if (synchronizedVulnerability == null)
                 return true;
-            // TODO what if aliases haved changed? This doesn't get detected currently by
-            // other mirroring tasks either
         }
 
-        if (syncAliases) {
-            VulnerabilityAlias alias = extractAliases(advisory);
-            if (alias != null) {
+        if (syncAliases && mappedVulnerability.getAliases() != null && mappedVulnerability.getAliases().size() > 0) {
+            for (VulnerabilityAlias alias : mappedVulnerability.getAliases()) {
                 qm.synchronizeVulnerabilityAlias(alias);
             }
         }
@@ -222,37 +219,6 @@ public class ComposerAdvisoryMirrorTask implements LoggableSubscriber {
                 || (existingVulnerability == null);
     }
 
-    public static Vulnerability.Source extractSource(ComposerAdvisory composerAdvisory) {
-        // Currently seen DRUPAL and COMPOSER, but for composer we need to look for other fields
-        Source sourceFromId = Vulnerability.Source.resolve(composerAdvisory.getAdvisoryId());
-        if (sourceFromId != null && !EnumSet.of(Vulnerability.Source.UNKNOWN, Vulnerability.Source.COMPOSER).contains(sourceFromId)) {
-            return sourceFromId;
-        }
-
-        // Currently only used for GHSA and pointers to Friends Of PHP advisories, which is not a valid source
-        Source sourceFromRemoteId = Vulnerability.Source.resolve(composerAdvisory.getRemoteId());
-        if (sourceFromRemoteId != null && sourceFromRemoteId != Vulnerability.Source.UNKNOWN) {
-            return sourceFromRemoteId;
-        }
-
-        // Some Advisories from Friends Of PHP have a GHSA, which is leading
-        for (String possibleAlias : composerAdvisory.getSources().values()) {
-            Source sourceFromPossibleAlias = Vulnerability.Source.resolve(possibleAlias);
-            if (sourceFromPossibleAlias != null && sourceFromPossibleAlias != Vulnerability.Source.UNKNOWN) {
-                return sourceFromPossibleAlias;
-            }
-        }
-
-        // Use CVE, but ensure it's valid. You never know with these Composer repositories
-        Source sourceFromCve = Vulnerability.Source.resolve(composerAdvisory.getCve());
-        if (sourceFromCve != null && sourceFromCve == Vulnerability.Source.NVD) {
-            return sourceFromCve;
-        }
-
-        // Worst case we set it to Composer, which will result in a PKSA as id, similar to OSV.
-        return Vulnerability.Source.COMPOSER;
-    }
-
     private VulnerabilityAlias extractAliases(ComposerAdvisory composerAdvisory) {
         // We only support one alias per source and do not store effectively alias
         // records
@@ -271,11 +237,42 @@ public class ComposerAdvisoryMirrorTask implements LoggableSubscriber {
         return null;
     }
 
-    protected Vulnerability mapComposerAdvisoryToVulnerability(final ComposerAdvisory composerAdvisory) {
+    public static String extractVulnId(ComposerAdvisory composerAdvisory) {
+        // Currently seen DRUPAL and COMPOSER, but for composer we need to look for other fields
+        Source sourceFromId = Vulnerability.Source.resolve(composerAdvisory.getAdvisoryId());
+        if (sourceFromId != null && !EnumSet.of(Vulnerability.Source.UNKNOWN, Vulnerability.Source.COMPOSER).contains(sourceFromId)) {
+            return composerAdvisory.getAdvisoryId();
+        }
+
+        // Currently only used for GHSA and pointers to Friends Of PHP advisories, which is not a valid source
+        Source sourceFromRemoteId = Vulnerability.Source.resolve(composerAdvisory.getRemoteId());
+        if (sourceFromRemoteId != null && sourceFromRemoteId != Vulnerability.Source.UNKNOWN) {
+            return composerAdvisory.getRemoteId();
+        }
+
+        // Some Advisories from Friends Of PHP have a GHSA, which is leading
+        for (String possibleAlias : composerAdvisory.getSources().values()) {
+            Source sourceFromPossibleAlias = Vulnerability.Source.resolve(possibleAlias);
+            if (sourceFromPossibleAlias != null && sourceFromPossibleAlias != Vulnerability.Source.UNKNOWN) {
+                return possibleAlias;
+            }
+        }
+
+        // Use CVE, but ensure it's valid. You never know with these Composer repositories
+        Source sourceFromCve = Vulnerability.Source.resolve(composerAdvisory.getCve());
+        if (sourceFromCve != null && sourceFromCve == Vulnerability.Source.NVD) {
+            return composerAdvisory.getCve();
+        }
+
+        // Wordt case will result in a PKSA as id, similar to OSV.
+        return composerAdvisory.getAdvisoryId();
+    }
+
+    protected Vulnerability mapComposerAdvisoryToVulnerability(final ComposerAdvisory composerAdvisory, final boolean syncAliases) {
         final Vulnerability vuln = new Vulnerability();
 
-        vuln.setVulnId(composerAdvisory.getAdvisoryId());
-        vuln.setSource(extractSource(composerAdvisory));
+        vuln.setVulnId(extractVulnId(composerAdvisory));
+        vuln.setSource(Vulnerability.Source.resolve(vuln.getVulnId()));
 
         String description = composerAdvisory.getTitle() + " in " + composerAdvisory.getPackageName() + " "
                 + composerAdvisory.getAffectedVersions() + "\n\n";
@@ -334,6 +331,21 @@ public class ComposerAdvisoryMirrorTask implements LoggableSubscriber {
         } else {
             vuln.setSeverity(Severity.UNASSIGNED);
         }
+
+        if (syncAliases) {
+            VulnerabilityAlias alias = new VulnerabilityAlias();
+            alias.setAliasFromVulnId(vuln.getVulnId());
+            alias.setAliasFromVulnId(composerAdvisory.getCve());
+            alias.setAliasFromVulnId(composerAdvisory.getRemoteId());
+            for (String possibleAlias : composerAdvisory.getSources().values()) {
+                alias.setAliasFromVulnId(possibleAlias);
+            }
+
+            if (alias.countIdentifiers() > 1) {
+                vuln.setAliases(List.of(alias));
+            }
+        }
+
         return vuln;
     }
 

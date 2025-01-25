@@ -97,61 +97,55 @@ public class ComposerAdvisoryMirrorTaskTest extends PersistenceCapableTest {
         ComposerAdvisory composerAdvisory = ComposerAdvisoryParser
                 .parseAdvisory(ComposerAdvisoryParserTest.VULN_FOP);
         composerAdvisory.setTitle(longTitle);
-        Vulnerability vuln = task.mapComposerAdvisoryToVulnerability(composerAdvisory);
+        Vulnerability vuln = task.mapComposerAdvisoryToVulnerability(composerAdvisory, true);
         Assert.assertEquals(vuln.getTitle(), StringUtils.abbreviate(longTitle, "...", 255));
 
         String longAffected = "\\u003E=8.0.0,\\u003C8.1.0|\\u003E=8.1.0,\\u003C8.2.0|\\u003E=8.2.0,\\u003C8.3.0|\\u003E=8.3.0,\\u003C8.4.0|\\u003E=8.4.0,\\u003C8.5.0|\\u003E=8.5.0,\\u003C8.6.0|\\u003E=8.6.0,\\u003C8.7.0|\\u003E=8.7.0,\\u003C8.8.0|\\u003E=8.8.0,\\u003C8.9.0|\\u003E=8.9.0,\\u003C9.0.0|\\u003E=9.0.0,\\u003C9.1.0|\\u003E=9.1.0,\\u003C9.2.0|\\u003E=9.2.0,\\u003C9.3.0|\\u003E=9.3.0,\\u003C9.4.0|\\u003E=9.4.0,\\u003C9.5.0|\\u003E=9.5.0,\\u003C10.0.0|\\u003E=10.0.0,\\u003C10.1.0|\\u003E=10.1.0,\\u003C10.1.8|\\u003E=10.2.0,\\u003C10.2.2";
         composerAdvisory = ComposerAdvisoryParser.parseAdvisory(ComposerAdvisoryParserTest.VULN_FOP);
         composerAdvisory.setAffectedVersionsCve(longAffected);
-        vuln = task.mapComposerAdvisoryToVulnerability(composerAdvisory);
+        vuln = task.mapComposerAdvisoryToVulnerability(composerAdvisory, true);
         Assert.assertEquals(vuln.getVulnerableVersions(), StringUtils.abbreviate(longAffected, "...", 255));
     }
 
     @Test
-    public void testExtractSourceDrupal() {
-        Vulnerability.Source source1 = ComposerAdvisoryMirrorTask
-                .extractSource(ComposerAdvisoryParser.parseAdvisory(ComposerAdvisoryParserTest.VULN_DRUPAL));
-        Assert.assertNotNull(source1);
+    public void testextractVulnIdDrupal() {
+        Vulnerability.Source source1 = Vulnerability.Source.resolve(ComposerAdvisoryMirrorTask
+                .extractVulnId(ComposerAdvisoryParser.parseAdvisory(ComposerAdvisoryParserTest.VULN_DRUPAL)));
         Assert.assertEquals(Vulnerability.Source.DRUPAL, source1);
     }
 
     @Test
-    public void testExtractSourceFriendsOfPhp() {
-        Vulnerability.Source source2 = ComposerAdvisoryMirrorTask
-                .extractSource(ComposerAdvisoryParser.parseAdvisory(ComposerAdvisoryParserTest.VULN_FOP));
-        Assert.assertNotNull(source2);
+    public void testextractVulnIdFriendsOfPhp() {
+        Vulnerability.Source source2 = Vulnerability.Source.resolve(ComposerAdvisoryMirrorTask
+                .extractVulnId(ComposerAdvisoryParser.parseAdvisory(ComposerAdvisoryParserTest.VULN_FOP)));
         Assert.assertEquals(Vulnerability.Source.GITHUB, source2);
     }
 
     @Test
-    public void testExtractSourceGHSA() {
-        Vulnerability.Source source3 = ComposerAdvisoryMirrorTask
-                .extractSource(ComposerAdvisoryParser.parseAdvisory(ComposerAdvisoryParserTest.VULN_GHSA));
-        Assert.assertNotNull(source3);
+    public void testextractVulnIdGHSA() {
+        Vulnerability.Source source3 = Vulnerability.Source.resolve(ComposerAdvisoryMirrorTask
+                .extractVulnId(ComposerAdvisoryParser.parseAdvisory(ComposerAdvisoryParserTest.VULN_GHSA)));
         Assert.assertEquals(Vulnerability.Source.GITHUB, source3);
     }
 
     @Test
-    public void testExtractSourceFriendsOfPhpCVE() {
-        Vulnerability.Source source4 = ComposerAdvisoryMirrorTask
-                .extractSource(ComposerAdvisoryParser.parseAdvisory(ComposerAdvisoryParserTest.VULN_FOP_CVE));
-        Assert.assertNotNull(source4);
+    public void testextractVulnIdFriendsOfPhpCVE() {
+        Vulnerability.Source source4 = Vulnerability.Source.resolve(ComposerAdvisoryMirrorTask
+                .extractVulnId(ComposerAdvisoryParser.parseAdvisory(ComposerAdvisoryParserTest.VULN_FOP_CVE)));
         Assert.assertEquals(Vulnerability.Source.NVD, source4);
     }
 
     @Test
-    public void testExtractSourceFriendsOfPhpNoCVE() {
-        Vulnerability.Source source4 = ComposerAdvisoryMirrorTask
-                .extractSource(ComposerAdvisoryParser.parseAdvisory(ComposerAdvisoryParserTest.VULN_FOP_NO_CVE));
-        Assert.assertNotNull(source4);
+    public void testextractVulnIdFriendsOfPhpNoCVE() {
+        Vulnerability.Source source4 = Vulnerability.Source.resolve(ComposerAdvisoryMirrorTask
+                .extractVulnId(ComposerAdvisoryParser.parseAdvisory(ComposerAdvisoryParserTest.VULN_FOP_NO_CVE)));
         Assert.assertEquals(Vulnerability.Source.GITHUB, source4);
     }
 
     @Test
-    public void testExtractSourceComposer() {
-        Vulnerability.Source source5 = ComposerAdvisoryMirrorTask
-                .extractSource(ComposerAdvisoryParser.parseAdvisory(ComposerAdvisoryParserTest.VULN_COMPOSER));
-        Assert.assertNotNull(source5);
+    public void testextractVulnIdComposer() {
+        Vulnerability.Source source5 = Vulnerability.Source.resolve(ComposerAdvisoryMirrorTask
+                .extractVulnId(ComposerAdvisoryParser.parseAdvisory(ComposerAdvisoryParserTest.VULN_COMPOSER)));
         Assert.assertEquals(Vulnerability.Source.COMPOSER, source5);
     }
 
@@ -269,17 +263,16 @@ public class ComposerAdvisoryMirrorTaskTest extends PersistenceCapableTest {
     }
 
     @Test
-    public void testFriends() throws Exception {
-        doFriends(true);
+    public void testFop() throws Exception {
+        doFop(true);
     }
 
     @Test
-    public void testFriendsSkipAliases() throws Exception {
-        doFriends(false);
+    public void testFopSkipAliases() throws Exception {
+        doFop(false);
     }
 
-    //TODO VS Should FriendsOfPHP become its own source? It has no own Id.
-    public void doFriends(boolean aliasSync) throws Exception {
+    public void doFop(boolean aliasSync) throws Exception {
         ComposerAdvisory advisory = ComposerAdvisoryParser.parseAdvisory(ComposerAdvisoryParserTest.VULN_FOP);
         Assert.assertNotNull(advisory);
 
@@ -289,8 +282,8 @@ public class ComposerAdvisoryMirrorTaskTest extends PersistenceCapableTest {
 
         final Consumer<Vulnerability> assertVulnerability = (vulnerability) -> {
             Assert.assertNotNull(vulnerability);
-            Assert.assertEquals("PKSA-p9s6-dthp-ws2d", vulnerability.getVulnId());
-            Assert.assertEquals("COMPOSER", vulnerability.getSource());
+            Assert.assertEquals("GHSA-r8v4-7vwj-983x", vulnerability.getVulnId());
+            Assert.assertEquals("GITHUB", vulnerability.getSource());
             Assert.assertEquals("<1.8.1|>=1.9.0,<1.9.1|>=1.10,<1.10.3|>=2.0,<2.3.3",
                     vulnerability.getVulnerableVersions());
             Assert.assertFalse(StringUtils.isEmpty(vulnerability.getTitle()));
@@ -305,7 +298,7 @@ public class ComposerAdvisoryMirrorTaskTest extends PersistenceCapableTest {
                     vulnerability.getUpdated().toInstant());
         };
 
-        Vulnerability vulnerability = qm.getVulnerabilityByVulnId("COMPOSER", "PKSA-p9s6-dthp-ws2d", true);
+        Vulnerability vulnerability = qm.getVulnerabilityByVulnId(Vulnerability.Source.GITHUB, "GHSA-r8v4-7vwj-983x", true);
         assertVulnerability.accept(vulnerability);
 
         List<VulnerableSoftware> vulnerableSoftware = qm.getAllVulnerableSoftwareByPurl(
@@ -326,7 +319,7 @@ public class ComposerAdvisoryMirrorTaskTest extends PersistenceCapableTest {
         if (aliasSync) {
             assertThat(aliases).satisfiesExactly(
                     alias -> {
-                        assertEquals("PKSA-p9s6-dthp-ws2d",alias.getComposerId());
+                        assertNull(alias.getComposerId());
                         assertEquals("CVE-2016-9814", alias.getCveId());
                         assertEquals("GHSA-r8v4-7vwj-983x", alias.getGhsaId());
                         assertNull(alias.getDrupalId());
@@ -341,16 +334,87 @@ public class ComposerAdvisoryMirrorTaskTest extends PersistenceCapableTest {
     }
 
     @Test
-    public void testFriendsNoCve() throws Exception {
-        doFriendsNoCve(true);
+    public void testFopCve() throws Exception {
+        doFop(true);
     }
 
     @Test
-    public void testFriendsNoCveSkipAliases() throws Exception {
-        doFriendsNoCve(false);
+    public void testFopCveSkipAliases() throws Exception {
+        doFop(false);
     }
 
-    public void doFriendsNoCve(boolean aliasSync) throws Exception {
+    public void doFopCve(boolean aliasSync) throws Exception {
+        ComposerAdvisory advisory = ComposerAdvisoryParser.parseAdvisory(ComposerAdvisoryParserTest.VULN_FOP_CVE);
+        Assert.assertNotNull(advisory);
+
+        ComposerAdvisoryMirrorTask task = new ComposerAdvisoryMirrorTask();
+
+        task.processAdvisory(qm, advisory, aliasSync);
+
+        final Consumer<Vulnerability> assertVulnerability = (vulnerability) -> {
+            Assert.assertNotNull(vulnerability);
+            Assert.assertEquals("CVE-2016-9814", vulnerability.getVulnId());
+            Assert.assertEquals("NVD", vulnerability.getSource());
+            Assert.assertEquals("<1.8.1|>=1.9.0,<1.9.1|>=1.10,<1.10.3|>=2.0,<2.3.3",
+                    vulnerability.getVulnerableVersions());
+            Assert.assertFalse(StringUtils.isEmpty(vulnerability.getTitle()));
+            Assert.assertFalse(StringUtils.isEmpty(vulnerability.getDescription()));
+            Assert.assertEquals(Severity.CRITICAL, vulnerability.getSeverity());
+            Assert.assertNull(vulnerability.getCreated());
+            Assert.assertNotNull(vulnerability.getPublished());
+            Assert.assertEquals(LocalDateTime.of(2016, 11, 29, 13, 12, 44).toInstant(ZoneOffset.UTC),
+                    vulnerability.getPublished().toInstant());
+            Assert.assertNotNull(vulnerability.getUpdated());
+            Assert.assertEquals(LocalDateTime.of(2016, 11, 29, 13, 12, 44).toInstant(ZoneOffset.UTC),
+                    vulnerability.getUpdated().toInstant());
+        };
+
+        Vulnerability vulnerability = qm.getVulnerabilityByVulnId(Vulnerability.Source.NVD, "CVE-2016-9814", true);
+        assertVulnerability.accept(vulnerability);
+
+        List<VulnerableSoftware> vulnerableSoftware = qm.getAllVulnerableSoftwareByPurl(
+            new PackageURL("pkg:composer/simplesamlphp/saml2"));
+
+        Assert.assertEquals(4, vulnerableSoftware.size());
+        Assert.assertEquals("1.8.1", vulnerableSoftware.get(0).getVersionEndExcluding());
+        Assert.assertEquals("1.9.0", vulnerableSoftware.get(1).getVersionStartIncluding());
+        Assert.assertEquals("1.9.1", vulnerableSoftware.get(1).getVersionEndExcluding());
+        //Is this ok, or should it become 1.10.0?
+        Assert.assertEquals("1.10", vulnerableSoftware.get(2).getVersionStartIncluding());
+        Assert.assertEquals("1.10.3", vulnerableSoftware.get(2).getVersionEndExcluding());
+        Assert.assertEquals("2.0", vulnerableSoftware.get(3).getVersionStartIncluding());
+        Assert.assertEquals("2.3.3", vulnerableSoftware.get(3).getVersionEndExcluding());
+
+        final List<VulnerabilityAlias> aliases = qm.getVulnerabilityAliases(vulnerability);
+        Assert.assertEquals(aliasSync ? 1 : 0, aliases.size());
+        if (aliasSync) {
+            assertThat(aliases).satisfiesExactly(
+                    alias -> {
+                        assertNull(alias.getComposerId());
+                        assertEquals("CVE-2016-9814", alias.getCveId());
+                        assertNull(alias.getDrupalId());
+                        assertNull(alias.getGsdId());
+                        assertNull(alias.getInternalId());
+                        assertNull(alias.getOsvId());
+                        assertNull(alias.getSnykId());
+                        assertNull(alias.getSonatypeId());
+                        assertNull(alias.getVulnDbId());
+                    });
+        }
+    }
+
+
+    @Test
+    public void testFopNoCve() throws Exception {
+        doFopNoCve(true);
+    }
+
+    @Test
+    public void testFopNoCveSkipAliases() throws Exception {
+        doFopNoCve(false);
+    }
+
+    public void doFopNoCve(boolean aliasSync) throws Exception {
         ComposerAdvisory advisory = ComposerAdvisoryParser.parseAdvisory(ComposerAdvisoryParserTest.VULN_FOP_NO_CVE);
         Assert.assertNotNull(advisory);
 
@@ -360,8 +424,8 @@ public class ComposerAdvisoryMirrorTaskTest extends PersistenceCapableTest {
 
         final Consumer<Vulnerability> assertVulnerability = (vulnerability) -> {
             Assert.assertNotNull(vulnerability);
-            Assert.assertEquals("PKSA-n8hw-tywm-xrh7", vulnerability.getVulnId());
-            Assert.assertEquals("COMPOSER", vulnerability.getSource());
+            Assert.assertEquals("GHSA-7v68-3pr5-h3cr", vulnerability.getVulnId());
+            Assert.assertEquals("GITHUB", vulnerability.getSource());
             Assert.assertEquals(">=8.0.0,<8.1.0|>=8.1.0,<8.2.0|>=8.2.0,<8.3.0|>=8.3.0,<8.4.0|>=8.4.0,<8.5.0|>=8.5.0,<8.6.0|>=8.6.0,<8.7.0|>=8.7.0,<8.7.11|>=8.8.0,<8.8.1",
                     vulnerability.getVulnerableVersions());
             Assert.assertFalse(StringUtils.isEmpty(vulnerability.getTitle()));
@@ -376,7 +440,7 @@ public class ComposerAdvisoryMirrorTaskTest extends PersistenceCapableTest {
                     vulnerability.getUpdated().toInstant());
         };
 
-        Vulnerability vulnerability = qm.getVulnerabilityByVulnId("COMPOSER", "PKSA-n8hw-tywm-xrh7", true);
+        Vulnerability vulnerability = qm.getVulnerabilityByVulnId(Vulnerability.Source.GITHUB, "GHSA-7v68-3pr5-h3cr", true);
         assertVulnerability.accept(vulnerability);
 
         List<VulnerableSoftware> vulnerableSoftware = qm.getAllVulnerableSoftwareByPurl(
@@ -405,22 +469,7 @@ public class ComposerAdvisoryMirrorTaskTest extends PersistenceCapableTest {
         Assert.assertEquals("8.8.1", vulnerableSoftware.get(8).getVersionEndExcluding());
 
         final List<VulnerabilityAlias> aliases = qm.getVulnerabilityAliases(vulnerability);
-        Assert.assertEquals(aliasSync ? 1 : 0, aliases.size());
-        if (aliasSync) {
-            assertThat(aliases).satisfiesExactly(
-                    alias -> {
-                        assertEquals("GHSA-7v68-3pr5-h3cr", alias.getGhsaId());
-                        assertEquals("PKSA-n8hw-tywm-xrh7", alias.getComposerId());
-                        assertNull(alias.getCveId());
-                        assertNull(alias.getDrupalId());
-                        assertNull(alias.getGsdId());
-                        assertNull(alias.getInternalId());
-                        assertNull(alias.getOsvId());
-                        assertNull(alias.getSnykId());
-                        assertNull(alias.getSonatypeId());
-                        assertNull(alias.getVulnDbId());
-                    });
-        }
+        Assert.assertEquals(aliasSync ? 0 : 0, aliases.size());
     }
 
     @Test
@@ -466,8 +515,8 @@ public class ComposerAdvisoryMirrorTaskTest extends PersistenceCapableTest {
 
         final Consumer<Vulnerability> assertVulnerability = (vulnerability) -> {
             Assert.assertNotNull(vulnerability);
-            Assert.assertEquals("PKSA-228k-hrjg-43zp", vulnerability.getVulnId());
-            Assert.assertEquals("COMPOSER", vulnerability.getSource());
+            Assert.assertEquals("GHSA-297f-r9w7-w492", vulnerability.getVulnId());
+            Assert.assertEquals("GITHUB", vulnerability.getSource());
             Assert.assertEquals("=2.4.4|>=2.4.0,<2.4.3-p3|<2.3.7-p4",
                     vulnerability.getVulnerableVersions());
             Assert.assertFalse(StringUtils.isEmpty(vulnerability.getTitle()));
@@ -482,7 +531,7 @@ public class ComposerAdvisoryMirrorTaskTest extends PersistenceCapableTest {
                     vulnerability.getUpdated().toInstant());
         };
 
-        Vulnerability vulnerability = qm.getVulnerabilityByVulnId("COMPOSER", "PKSA-228k-hrjg-43zp", true);
+        Vulnerability vulnerability = qm.getVulnerabilityByVulnId(Vulnerability.Source.GITHUB, "GHSA-297f-r9w7-w492", true);
         assertVulnerability.accept(vulnerability);
 
         List<VulnerableSoftware> vulnerableSoftware = qm.getAllVulnerableSoftwareByPurl(
@@ -499,7 +548,7 @@ public class ComposerAdvisoryMirrorTaskTest extends PersistenceCapableTest {
         if (aliasSync) {
             assertThat(aliases).satisfiesExactly(
                     alias -> {
-                        assertThat(alias.getComposerId().equals("PKSA-p9s6-dthp-ws2d"));
+                        assertNull(alias.getComposerId());
                         assertThat(alias.getCveId().equals("CVE-2022-42344"));
                         assertThat(alias.getGhsaId().equals("GHSA-r8v4-7vwj-983x"));
                         assertNull(alias.getDrupalId());
@@ -568,8 +617,7 @@ public class ComposerAdvisoryMirrorTaskTest extends PersistenceCapableTest {
 
         Assert.assertEquals("GHSA-2697-96mv-3gfm", vulnerability1.getVulnId());
         Assert.assertEquals("CVE-2024-50701", vulnerability1.getAliases().get(0).getCveId());
-
-
+        Assert.assertNull(vulnerability1.getAliases().get(0).getComposerId());
     }
 
     private String getRepoRootForMock(File file, String mockUrl) throws Exception {
