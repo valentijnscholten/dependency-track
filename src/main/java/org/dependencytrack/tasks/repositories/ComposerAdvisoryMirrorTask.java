@@ -175,8 +175,6 @@ public class ComposerAdvisoryMirrorTask implements LoggableSubscriber {
             }
         }
 
-        if
-
         LOGGER.debug("Updating vulnerable software for advisory: " + advisory.getAdvisoryId());
         List<VulnerableSoftware> vsList = mapVulnerabilityToVulnerableSoftware(qm, advisory);
         qm.persist(vsList);
