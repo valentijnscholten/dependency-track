@@ -562,12 +562,6 @@ public class ComposerAdvisoryMirrorTaskTest extends PersistenceCapableTest {
         }
     }
 
-
-    // TODO VS Test CVE with existing vuln
-    // TODO VS Test GHSA with existing vuln
-
-    // TODO VS Test repository enabled + vul mirror enabled
-
     @Test
     public void testPackagistAdvisories() throws Exception {
         ComposerAdvisoryMirrorTask task = new ComposerAdvisoryMirrorTask();
@@ -618,6 +612,11 @@ public class ComposerAdvisoryMirrorTaskTest extends PersistenceCapableTest {
         Assert.assertEquals("GHSA-2697-96mv-3gfm", vulnerability1.getVulnId());
         Assert.assertEquals("CVE-2024-50701", vulnerability1.getAliases().get(0).getCveId());
         Assert.assertNull(vulnerability1.getAliases().get(0).getComposerId());
+
+    // TODO VS Test CVE with existing vuln
+    // TODO VS Test GHSA with existing vuln
+
+
     }
 
     private String getRepoRootForMock(File file, String mockUrl) throws Exception {

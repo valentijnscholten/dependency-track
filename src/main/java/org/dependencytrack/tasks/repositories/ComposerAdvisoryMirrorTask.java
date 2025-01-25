@@ -162,30 +162,8 @@ public class ComposerAdvisoryMirrorTask implements LoggableSubscriber {
         final Vulnerability.Source vulnerabilitySource = Vulnerability.Source
                 .valueOf(mappedVulnerability.getSource());
 
-        // Compose Advisories can have their own Id (PKSA-xxxx-yyy) or an Id from an
-        // authoritive source (CVE-xxxx-yyy, GHSA-xxxx-yyy, ...)
-        // I haven't seen any Composer Advisory with a CVE or GHSA id, but it is
-        // possible.
-        // Make sure that we don't overwrite data of the authoritative source
-        // Similar to what is done for Osv Mirroring
-        // Please note that Drupal is also considered authoritative source, but provided
-        // by Composer here in this task
-
-        final ConfigPropertyConstants vulnAuthoritativeSourceToggle = switch (vulnerabilitySource) {
-            case Vulnerability.Source.NVD -> ConfigPropertyConstants.VULNERABILITY_SOURCE_NVD_ENABLED;
-            case Vulnerability.Source.GITHUB ->
-                ConfigPropertyConstants.VULNERABILITY_SOURCE_GITHUB_ADVISORIES_ENABLED;
-            default -> null;
-        };
-
-        final boolean vulnAuthoritativeSourceEnabled = vulnAuthoritativeSourceToggle == null ? true
-                : Boolean
-                        .valueOf(qm.getConfigProperty(vulnAuthoritativeSourceToggle.getGroupName(),
-                                vulnAuthoritativeSourceToggle.getPropertyName()).getPropertyValue());
         Vulnerability synchronizedVulnerability = existingVulnerability;
-
-        if (shouldUpdateExistingVulnerability(existingVulnerability, vulnerabilitySource,
-                vulnAuthoritativeSourceEnabled)) {
+        if (shouldUpdateExistingVulnerability(existingVulnerability, vulnerabilitySource)) {
             synchronizedVulnerability = qm.synchronizeVulnerability(mappedVulnerability, false);
             if (synchronizedVulnerability == null)
                 return true;
@@ -197,44 +175,36 @@ public class ComposerAdvisoryMirrorTask implements LoggableSubscriber {
             }
         }
 
+        if
+
         LOGGER.debug("Updating vulnerable software for advisory: " + advisory.getAdvisoryId());
         List<VulnerableSoftware> vsList = mapVulnerabilityToVulnerableSoftware(qm, advisory);
         qm.persist(vsList);
         final Vulnerability finalSynchronizedVulnerability = synchronizedVulnerability;
-        //TODO VS make sure only DRUPAL or COMPOSER is used as attribution source
+        final Vulnerability.Source attributionSource = vulnerabilitySource == Vulnerability.Source.DRUPAL? Vulnerability.Source.DRUPAL : Vulnerability.Source.COMPOSER;
         vsList.forEach(vs -> qm.updateAffectedVersionAttribution(finalSynchronizedVulnerability, vs,
-                vulnerabilitySource));
+            attributionSource));
         vsList = qm.reconcileVulnerableSoftware(synchronizedVulnerability, vsListOld, vsList,
-                vulnerabilitySource);
+            attributionSource);
         synchronizedVulnerability.setVulnerableSoftware(vsList);
         qm.persist(synchronizedVulnerability);
         return true;
     }
 
     private boolean shouldUpdateExistingVulnerability(Vulnerability existingVulnerability,
-            Vulnerability.Source vulnerabilitySource, boolean vulnAuthoritativeSourceEnabled) {
-        // We just skip anything other than DRUPAL and COMPOSER. Composer repositories are only providing limit information, so we rely on authoritative sources.
-        // Unless the vulnerability is not replicated (yet) by an authoritative source
+            Vulnerability.Source vulnerabilitySource) {
+        /*
+        * Compose Advisories can have their own Id (PKSA-xxxx-yyy) or an Id from an
+        * authoritive source (CVE-xxxx-yyy, GHSA-xxxx-yyy, ...)
+        * I haven't seen any Composer Advisory with a CVE or GHSA id, but it is
+        * possible.
+        *  Make sure that we don't overwrite data of the authoritative source
+        * Similar to what is done for Osv Mirroring
+        * Please note that Drupal is also considered authoritative source, but provided
+        * by Composer here in this task
+        */
         return (EnumSet.of(Vulnerability.Source.COMPOSER, Vulnerability.Source.DRUPAL).contains(vulnerabilitySource))
                 || (existingVulnerability == null);
-    }
-
-    private VulnerabilityAlias extractAliases(ComposerAdvisory composerAdvisory) {
-        // We only support one alias per source and do not store effectively alias
-        // records
-        VulnerabilityAlias alias = new VulnerabilityAlias();
-        // Make sure we set DrupalId or ComposerId depending on AdvisoryId
-        alias.setAliasFromVulnId(composerAdvisory.getAdvisoryId());
-        boolean aliasesPresent = false;
-        aliasesPresent |= alias.setAliasFromVulnId(composerAdvisory.getCve());
-        aliasesPresent |= alias.setAliasFromVulnId(composerAdvisory.getRemoteId());
-        for (String possibleAlias : composerAdvisory.getSources().values()) {
-            aliasesPresent |= alias.setAliasFromVulnId(possibleAlias);
-        }
-        if (aliasesPresent) {
-            return alias;
-        }
-        return null;
     }
 
     public static String extractVulnId(ComposerAdvisory composerAdvisory) {
@@ -369,12 +339,6 @@ public class ComposerAdvisoryMirrorTask implements LoggableSubscriber {
             String versionEndIncluding = null;
             String versionEndExcluding = null;
             if (advisory.getAffectedVersions() != null) {
-                // TODO VS Testcases for version ranges
-                // Examples:
-                // "affectedVersions": ">=2.2,<2.2.10|>=2.3,<2.3.2-p2"
-                // "affectedVersions": <1.8.0 || >=2.2.0 <2.2.2 ">= 8.0.0 < 10.2.11 || >= 10.3.0
-                // < 10.3.9 || >= 11.0.0 < 11.0.8"
-
                 // regex splitters copied from Composer Version Parser
                 LOGGER.trace("Parsing version ranges for " + advisory.getPackageEcosystem() + " : "
                         + advisory.getPackageName() + " : " + advisory.getAffectedVersions());
