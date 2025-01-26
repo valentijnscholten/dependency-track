@@ -29,7 +29,6 @@ import java.util.Map.Entry;
 import org.apache.commons.lang3.StringUtils;
 import org.dependencytrack.event.ComposerAdvisoryMirrorEvent;
 import org.dependencytrack.event.IndexEvent;
-import org.dependencytrack.model.ConfigPropertyConstants;
 import org.dependencytrack.model.Repository;
 import org.dependencytrack.model.RepositoryType;
 import org.dependencytrack.model.Severity;
