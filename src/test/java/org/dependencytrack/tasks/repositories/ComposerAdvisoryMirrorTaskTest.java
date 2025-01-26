@@ -25,7 +25,6 @@ import static org.mockserver.model.HttpResponse.response;
 
 import java.io.File;
 import java.io.IOException;
-import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -34,7 +33,7 @@ import java.util.function.Consumer;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.http.HttpHeaders;
 import org.dependencytrack.PersistenceCapableTest;
-import org.dependencytrack.model.Component;
+import org.dependencytrack.model.AffectedVersionAttribution;
 import org.dependencytrack.model.Repository;
 import org.dependencytrack.model.RepositoryType;
 import org.dependencytrack.model.Severity;
@@ -176,26 +175,67 @@ public class ComposerAdvisoryMirrorTaskTest extends PersistenceCapableTest {
         List<VulnerableSoftware> mapVulnerabilityToVulnerableSoftware = task.mapVulnerabilityToVulnerableSoftware(qm,
                 vuln);
         Assert.assertEquals(4, mapVulnerabilityToVulnerableSoftware.size());
+//        "affectedVersions": "\u003C1.8.1|\u003E=1.9.0,\u003C1.9.1|\u003E=1.10,\u003C1.10.3|\u003E=2.0,\u003C2.3.3",
         assertThat(mapVulnerabilityToVulnerableSoftware).satisfiesExactlyInAnyOrder(
                 range -> {
+                    assertThat(range.getVersionStartIncluding()).isNull();
+                    assertThat(range.getVersionStartExcluding()).isNull();
+                    assertThat(range.getVersionEndIncluding()).isNull();
                     assertThat(range.getVersionEndExcluding()).isEqualTo("1.8.1");
                 },
                 range -> {
                     assertThat(range.getVersionStartIncluding()).isEqualTo("1.9.0");
+                    assertThat(range.getVersionStartExcluding()).isNull();
+                    assertThat(range.getVersionEndIncluding()).isNull();
                     assertThat(range.getVersionEndExcluding()).isEqualTo("1.9.1");
                 },
                 range -> {
                     assertThat(range.getVersionStartIncluding()).isEqualTo("1.10");
+                    assertThat(range.getVersionStartExcluding()).isNull();
+                    assertThat(range.getVersionEndIncluding()).isNull();
                     assertThat(range.getVersionEndExcluding()).isEqualTo("1.10.3");
                 },
                 range -> {
                     assertThat(range.getVersionStartIncluding()).isEqualTo("2.0");
+                    assertThat(range.getVersionStartExcluding()).isNull();
+                    assertThat(range.getVersionEndIncluding()).isNull();
                     assertThat(range.getVersionEndExcluding()).isEqualTo("2.3.3");
                 });
     }
 
-    // TODO VS Test "*"
-    // TODO VS Test exact versions
+    @Test
+    public void testDrupalWildcardAffectedVersionMapping() throws IOException {
+        ComposerAdvisory vuln = ComposerAdvisoryParser
+                .parseAdvisory(ComposerAdvisoryParserTest.VULN_WILDCARD_ALL);
+        ComposerAdvisoryMirrorTask task = new ComposerAdvisoryMirrorTask();
+        List<VulnerableSoftware> mapVulnerabilityToVulnerableSoftware = task.mapVulnerabilityToVulnerableSoftware(qm,
+                vuln);
+        Assert.assertEquals(1, mapVulnerabilityToVulnerableSoftware.size());
+        assertThat(mapVulnerabilityToVulnerableSoftware).satisfiesExactlyInAnyOrder(
+                range -> {
+                    assertThat(range.getVersionStartIncluding()).isNull();
+                    assertThat(range.getVersionStartExcluding()).isNull();
+                    assertThat(range.getVersionEndIncluding()).isNull();
+                    assertThat(range.getVersionEndExcluding()).isEqualTo("999.999.999");
+                });
+    }
+
+    @Test
+    public void testDrupalExactVersionMapping() throws IOException {
+        ComposerAdvisory vuln = ComposerAdvisoryParser
+                .parseAdvisory(ComposerAdvisoryParserTest.VULN_EXACT_VERSION);
+        ComposerAdvisoryMirrorTask task = new ComposerAdvisoryMirrorTask();
+        List<VulnerableSoftware> mapVulnerabilityToVulnerableSoftware = task.mapVulnerabilityToVulnerableSoftware(qm,
+                vuln);
+        Assert.assertEquals(1, mapVulnerabilityToVulnerableSoftware.size());
+        assertThat(mapVulnerabilityToVulnerableSoftware).satisfiesExactlyInAnyOrder(
+                range -> {
+                    assertThat(range.getVersionStartIncluding()).isEqualTo("8.1.0");
+                    assertThat(range.getVersionStartExcluding()).isNull();
+                    assertThat(range.getVersionEndIncluding()).isEqualTo("8.1.0");
+                    assertThat(range.getVersionEndExcluding()).isNull();
+                });
+    }
 
     @Test
     public void testDrupalAdvisory() throws Exception {
@@ -482,29 +522,6 @@ public class ComposerAdvisoryMirrorTaskTest extends PersistenceCapableTest {
         doGHSAAdvisory(false);
     }
 
-
-    // public final static JSONObject vulnGHSA = new JSONObject("""
-    //     {
-    //         "advisoryId": "PKSA-228k-hrjg-43zp",
-    //         "packageName": "magento/community-edition",
-    //         "remoteId": "GHSA-297f-r9w7-w492",
-    //         "title": "Magento Improper input validation vulnerability",
-    //         "link": "https://github.com/advisories/GHSA-297f-r9w7-w492",
-    //         "cve": "CVE-2022-42344",
-    //         "affectedVersions": "=2.4.4|>=2.4.0,<2.4.3-p3|<2.3.7-p4",
-    //         "source": "GitHub",
-    //         "reportedAt": "2022-10-20 19:00:29",
-    //         "composerRepository": "https://packagist.org",
-    //         "severity": "high",
-    //         "sources": [
-    //             {
-    //                 "name": "GitHub",
-    //                 "remoteId": "GHSA-297f-r9w7-w492"
-    //             }
-    //         ]
-    //     }
-    // """);
-
     public void doGHSAAdvisory(boolean aliasSync) throws Exception {
         ComposerAdvisory advisory = ComposerAdvisoryParser.parseAdvisory(ComposerAdvisoryParserTest.VULN_GHSA);
         Assert.assertNotNull(advisory);
@@ -562,12 +579,9 @@ public class ComposerAdvisoryMirrorTaskTest extends PersistenceCapableTest {
         }
     }
 
-    @Test
-    public void testPackagistAdvisories() throws Exception {
-        ComposerAdvisoryMirrorTask task = new ComposerAdvisoryMirrorTask();
-
-        final File advisoryFile = ComposerMetaAnalyzerTest.getRepoResourceFile("repo.packagist.org", "advisories");
+    private Repository setupPackagistAdvisoryMock() throws Exception {
         final File packagistRepoRootFile = ComposerMetaAnalyzerTest.getRepoResourceFile("repo.packagist.org", "packages");
+        final File advisoryFile = ComposerMetaAnalyzerTest.getRepoResourceFile("repo.packagist.org", "advisories");
 
         @SuppressWarnings("resource")
         MockServerClient mockClient = new MockServerClient("localhost", mockServer.getPort());
@@ -596,27 +610,250 @@ public class ComposerAdvisoryMirrorTaskTest extends PersistenceCapableTest {
                                                                         "application/json")
                                                         .withBody(new String(ComposerMetaAnalyzerTest.getTestData(advisoryFile))));
 
-        Repository repo = qm.createRepository(RepositoryType.COMPOSER, "packagist", mockUrl, true, false, false, null, null, CONFIG_MIRROR_ENABLED_WITH_ALIAS);
-        boolean mirroredWithoutErrors = task.mirrorAdvisories(qm, repo);
+        return qm.createRepository(RepositoryType.COMPOSER, "packagist", null, mockUrl, true, false, false, null, null, CONFIG_MIRROR_ENABLED_WITH_ALIAS);
+    }
 
-        Assert.assertTrue(mirroredWithoutErrors);
+    @Test
+    public void testPackagistAdvisories() throws Exception {
+        ComposerAdvisoryMirrorTask task = new ComposerAdvisoryMirrorTask();
 
+        Repository repo = setupPackagistAdvisoryMock();
+
+        Assert.assertTrue(task.mirrorAdvisories(qm, repo));
         Assert.assertEquals(10, qm.getVulnerabilities().getTotal());
 
         //Vulnerabilities should not have PKSA ids if other IDs are present
-        Assert.assertNull(qm.getVulnerabilityByVulnId(Vulnerability.Source.COMPOSER, "PKSA-q4rt-5vfc-wksb"));
-        Vulnerability vulnerability1 = qm.getVulnerabilityByVulnId(Vulnerability.Source.GITHUB, "GHSA-2697-96mv-3gfm");
+        Assert.assertNull(qm.getVulnerabilityByVulnId(Vulnerability.Source.COMPOSER, "PKSA-q4rt-5vfc-wksb", true));
+        Vulnerability vulnerability1 = qm.getVulnerabilityByVulnId(Vulnerability.Source.GITHUB, "GHSA-2697-96mv-3gfm", true);
 
         Assert.assertNotNull(vulnerability1);
-
         Assert.assertEquals("GHSA-2697-96mv-3gfm", vulnerability1.getVulnId());
         Assert.assertEquals("CVE-2024-50701", vulnerability1.getAliases().get(0).getCveId());
         Assert.assertNull(vulnerability1.getAliases().get(0).getComposerId());
 
-    // TODO VS Test CVE with existing vuln
-    // TODO VS Test GHSA with existing vuln
+        Assert.assertEquals("<3.1.3.1", vulnerability1.getVulnerableVersions());
+        Assert.assertEquals(1, vulnerability1.getVulnerableSoftware().size());
+        Assert.assertNull(vulnerability1.getVulnerableSoftware().get(0).getVersionStartIncluding());
+        Assert.assertNull(vulnerability1.getVulnerableSoftware().get(0).getVersionStartExcluding());
+        Assert.assertNull(vulnerability1.getVulnerableSoftware().get(0).getVersionEndIncluding());
+        Assert.assertEquals("3.1.3.1", vulnerability1.getVulnerableSoftware().get(0).getVersionEndExcluding());
+
+    }
+
+    @Test
+    public void testPackagistAdvisoriesExistingGHSA() throws Exception {
+        ComposerAdvisoryMirrorTask task = new ComposerAdvisoryMirrorTask();
+
+        var vs1 = new VulnerableSoftware();
+        vs1.setPurlType("composer");
+        vs1.setPurlNamespace("tltneon");
+        vs1.setPurlName("lgsl");
+        vs1.setVersionStartIncluding("2.13.0");
+        vs1.setVersionEndIncluding("2.13.2.0");
+        vs1.setVulnerable(true);
+        vs1 = qm.persist(vs1);
+
+        var vs2 = new VulnerableSoftware();
+        vs2.setPurlType("composer");
+        vs2.setPurlNamespace("tltneon");
+        vs2.setPurlName("lgsl");
+        vs2.setVersionEndExcluding("7.0.0");
+        vs2.setVulnerable(true);
+        vs2 = qm.persist(vs2);
+
+        var existingVuln = new Vulnerability();
+        existingVuln.setVulnId("GHSA-xx95-62h6-h7v3");
+        existingVuln.setTitle("TITLE THAT SHOULD NOT GET OVERWRITTEN");
+        existingVuln.setSource(Vulnerability.Source.GITHUB);
+        existingVuln.setVulnerableSoftware(List.of(vs1, vs2));
+        existingVuln = qm.createVulnerability(existingVuln, false);
+        qm.updateAffectedVersionAttribution(existingVuln, vs1, Vulnerability.Source.GITHUB);
+        qm.updateAffectedVersionAttribution(existingVuln, vs2, Vulnerability.Source.GITHUB);
+
+        Repository repo = setupPackagistAdvisoryMock();
+
+        Assert.assertTrue(task.mirrorAdvisories(qm, repo));
+        Assert.assertEquals(10, qm.getVulnerabilities().getTotal());
+
+        Vulnerability vulnerability1 = qm.getVulnerabilityByVulnId(Vulnerability.Source.GITHUB, "GHSA-xx95-62h6-h7v3", true);
+
+        Assert.assertNotNull(vulnerability1);
+
+        Assert.assertEquals(existingVuln.getTitle(), vulnerability1.getTitle());
+
+        final List<VulnerableSoftware> vsList = vulnerability1.getVulnerableSoftware();
+        assertThat(vsList).satisfiesExactlyInAnyOrder(
+                // The version range that was reported by another source must be retained.
+                // There must be no attribution to OSV for this range.
+                vs -> {
+                    assertThat(vs.getPurlType()).isEqualTo("composer");
+                    assertThat(vs.getPurlNamespace()).isEqualTo("tltneon");
+                    assertThat(vs.getPurlName()).isEqualTo("lgsl");
+                    assertThat(vs.getPurlVersion()).isNull();
+                    assertThat(vs.getVersion()).isNull();
+                    assertThat(vs.getVersionStartIncluding()).isEqualTo("2.13.0");
+                    assertThat(vs.getVersionStartExcluding()).isNull();
+                    assertThat(vs.getVersionEndIncluding()).isEqualTo("2.13.2.0");
+                    assertThat(vs.getVersionEndExcluding()).isNull();
+
+                    final List<AffectedVersionAttribution> attributions = qm.getAffectedVersionAttributions(vulnerability1, vs);
+                    assertThat(attributions).satisfiesExactlyInAnyOrder(
+                            attr -> assertThat(attr.getSource()).isEqualTo(Vulnerability.Source.GITHUB)
+                    );
+                },
+                // The version range reported by both OSV and another source
+                // must have attributions for both sources.
+                vs -> {
+                    assertThat(vs.getPurlType()).isEqualTo("composer");
+                    assertThat(vs.getPurlNamespace()).isEqualTo("tltneon");
+                    assertThat(vs.getPurlName()).isEqualTo("lgsl");
+                    assertThat(vs.getPurlVersion()).isNull();
+                    assertThat(vs.getVersion()).isNull();
+                    assertThat(vs.getVersionStartIncluding()).isNull();
+                    assertThat(vs.getVersionStartExcluding()).isNull();
+                    assertThat(vs.getVersionEndIncluding()).isNull();
+                    assertThat(vs.getVersionEndExcluding()).isEqualTo("7.0.0");
+
+                    final List<AffectedVersionAttribution> attributions = qm.getAffectedVersionAttributions(vulnerability1, vs);
+                    assertThat(attributions).satisfiesExactlyInAnyOrder(
+                        attr -> assertThat(attr.getSource()).isEqualTo(Vulnerability.Source.COMPOSER),
+                        attr -> assertThat(attr.getSource()).isEqualTo(Vulnerability.Source.GITHUB)
+                    );
+                },
+                // The version range newly reported by COMPOSER must be attributed to only COMPOSER.
+                vs -> {
+                    assertThat(vs.getPurlType()).isEqualTo("composer");
+                    assertThat(vs.getPurlNamespace()).isEqualTo("tltneon");
+                    assertThat(vs.getPurlName()).isEqualTo("lgsl");
+                    assertThat(vs.getPurlVersion()).isNull();
+                    assertThat(vs.getVersion()).isNull();
+                    assertThat(vs.getVersionStartIncluding()).isEqualTo("4.3.0");
+                    assertThat(vs.getVersionStartExcluding()).isNull();
+                    assertThat(vs.getVersionEndIncluding()).isEqualTo("4.4.5");
+                    assertThat(vs.getVersionEndExcluding()).isNull();
+
+                    final List<AffectedVersionAttribution> attributions = qm.getAffectedVersionAttributions(vulnerability1, vs);
+                    assertThat(attributions).satisfiesExactly(
+                            attr -> assertThat(attr.getSource()).isEqualTo(Vulnerability.Source.COMPOSER)
+                    );
+                }
+            );
+
+    }
+
+    @Test
+    public void testPackagistAdvisoriesNonExistingGHSA() throws Exception {
+        ComposerAdvisoryMirrorTask task = new ComposerAdvisoryMirrorTask();
+
+        Repository repo = setupPackagistAdvisoryMock();
+
+        Assert.assertTrue(task.mirrorAdvisories(qm, repo));
+        Assert.assertEquals(10, qm.getVulnerabilities().getTotal());
+
+        Vulnerability vulnerability1 = qm.getVulnerabilityByVulnId(Vulnerability.Source.GITHUB, "GHSA-xx95-62h6-h7v3", true);
+
+        Assert.assertNotNull(vulnerability1);
+
+        Assert.assertEquals("lgsl Stored Cross-Site Scripting vulnerability", vulnerability1.getTitle());
+
+        final List<VulnerableSoftware> vsList = vulnerability1.getVulnerableSoftware();
+        assertThat(vsList).satisfiesExactlyInAnyOrder(
+                vs -> {
+                    assertThat(vs.getPurlType()).isEqualTo("composer");
+                    assertThat(vs.getPurlNamespace()).isEqualTo("tltneon");
+                    assertThat(vs.getPurlName()).isEqualTo("lgsl");
+                    assertThat(vs.getPurlVersion()).isNull();
+                    assertThat(vs.getVersion()).isNull();
+                    assertThat(vs.getVersionStartIncluding()).isNull();
+                    assertThat(vs.getVersionStartExcluding()).isNull();
+                    assertThat(vs.getVersionEndIncluding()).isNull();
+                    assertThat(vs.getVersionEndExcluding()).isEqualTo("7.0.0");
+
+                    final List<AffectedVersionAttribution> attributions = qm.getAffectedVersionAttributions(vulnerability1, vs);
+                    assertThat(attributions).satisfiesExactlyInAnyOrder(
+                        attr -> assertThat(attr.getSource()).isEqualTo(Vulnerability.Source.COMPOSER)
+                    );
+                },
+                vs -> {
+                    assertThat(vs.getPurlType()).isEqualTo("composer");
+                    assertThat(vs.getPurlNamespace()).isEqualTo("tltneon");
+                    assertThat(vs.getPurlName()).isEqualTo("lgsl");
+                    assertThat(vs.getPurlVersion()).isNull();
+                    assertThat(vs.getVersion()).isNull();
+                    assertThat(vs.getVersionStartIncluding()).isEqualTo("4.3.0");
+                    assertThat(vs.getVersionStartExcluding()).isNull();
+                    assertThat(vs.getVersionEndIncluding()).isEqualTo("4.4.5");
+                    assertThat(vs.getVersionEndExcluding()).isNull();
+
+                    final List<AffectedVersionAttribution> attributions = qm.getAffectedVersionAttributions(vulnerability1, vs);
+                    assertThat(attributions).satisfiesExactly(
+                            attr -> assertThat(attr.getSource()).isEqualTo(Vulnerability.Source.COMPOSER)
+                    );
+                }
+
+        );
+
+    }
 
 
+    private Repository setupDrupalAdvisoryMock() throws Exception {
+        final File packagistRepoRootFile = ComposerMetaAnalyzerTest.getRepoResourceFile("packages.drupal.org", "packages");
+        final File advisoryFile = ComposerMetaAnalyzerTest.getRepoResourceFile("packages.drupal.org", "advisories");
+
+        @SuppressWarnings("resource")
+        MockServerClient mockClient = new MockServerClient("localhost", mockServer.getPort());
+        String mockUrl = String.format("http://localhost:%d", mockServer.getPort());
+        mockClient.when(
+                        request()
+                                        .withMethod("GET")
+                                        .withPath("/packages.json"))
+                        .respond(
+                                        response()
+                                                        .withStatusCode(200)
+                                                        .withHeader(HttpHeaders.CONTENT_TYPE,
+                                                                        "application/json")
+                                                        .withBody(getRepoRootForMock(packagistRepoRootFile, mockUrl)));
+
+        mockClient.when(
+                        request()
+                                        .withMethod("GET")
+                                        .withPath("/api/security-advisories")
+                                        .withQueryStringParameter("updatedSince", "100")
+                                        )
+                        .respond(
+                                        response()
+                                                        .withStatusCode(200)
+                                                        .withHeader(HttpHeaders.CONTENT_TYPE,
+                                                                        "application/json")
+                                                        .withBody(new String(ComposerMetaAnalyzerTest.getTestData(advisoryFile))));
+
+        return qm.createRepository(RepositoryType.COMPOSER, "drupal8", null, mockUrl, true, false, false, null, null, CONFIG_MIRROR_ENABLED_WITH_ALIAS);
+    }
+
+
+    @Test
+    public void testDrupalAdvisories() throws Exception {
+        ComposerAdvisoryMirrorTask task = new ComposerAdvisoryMirrorTask();
+
+        Repository repo = setupDrupalAdvisoryMock();
+
+        Assert.assertTrue(task.mirrorAdvisories(qm, repo));
+        Assert.assertEquals(14, qm.getVulnerabilities().getTotal());
+
+        Vulnerability vulnerability1 = qm.getVulnerabilityByVulnId(Vulnerability.Source.DRUPAL, "SA-CORE-2018-002", true);
+
+        Assert.assertNotNull(vulnerability1);
+        Assert.assertEquals("SA-CORE-2018-002", vulnerability1.getVulnId());
+        Assert.assertEquals("SA-CORE-2018-002", vulnerability1.getAliases().get(0).getDrupalId());
+        Assert.assertEquals("CVE-2018-7600", vulnerability1.getAliases().get(0).getCveId());
+        Assert.assertNull(vulnerability1.getAliases().get(0).getComposerId());
+
+        Assert.assertEquals(">=7.0 <7.58", vulnerability1.getVulnerableVersions());
+        Assert.assertEquals(1, vulnerability1.getVulnerableSoftware().size());
+        Assert.assertEquals("7.0", vulnerability1.getVulnerableSoftware().get(0).getVersionStartIncluding());
+        Assert.assertNull(vulnerability1.getVulnerableSoftware().get(0).getVersionStartExcluding());
+        Assert.assertNull(vulnerability1.getVulnerableSoftware().get(0).getVersionEndIncluding());
+        Assert.assertEquals("7.58", vulnerability1.getVulnerableSoftware().get(0).getVersionEndExcluding());
     }
 
     private String getRepoRootForMock(File file, String mockUrl) throws Exception {

@@ -66,6 +66,11 @@ public class Repository implements Serializable {
     private String identifier;
 
     @Persistent
+    @Column(name = "DESCRIPTION")
+    @JsonDeserialize(using = TrimmedStringDeserializer.class)
+    private String description;
+
+    @Persistent
     @Column(name = "URL")
     @NotBlank
     @JsonDeserialize(using = TrimmedStringDeserializer.class)
@@ -99,8 +104,6 @@ public class Repository implements Serializable {
     @Persistent
     @Column(name = "PASSWORD")
     private String password;
-
-//TODO VS Add Description field
 
     @Persistent
     @Column(name = "CONFIG", jdbcType = "CLOB")
@@ -136,6 +139,14 @@ public class Repository implements Serializable {
 
     public void setIdentifier(String identifier) {
         this.identifier = identifier;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
     }
 
     public String getUrl() {

@@ -243,6 +243,7 @@ public class RepositoryResourceTest extends ResourceTest {
         repository.setEnabled(true);
         repository.setInternal(true);
         repository.setIdentifier("test");
+        repository.setDescription("description");
         repository.setUrl("www.foobar.com");
         repository.setType(RepositoryType.MAVEN);
         Response response = jersey.target(V1_REPOSITORY).request().header(X_API_KEY, apiKey)
@@ -258,6 +259,7 @@ public class RepositoryResourceTest extends ResourceTest {
         Assert.assertEquals(19, json.size());
         Assert.assertEquals("MAVEN", json.getJsonObject(14).getString("type"));
         Assert.assertEquals("test", json.getJsonObject(14).getString("identifier"));
+        Assert.assertEquals("description", json.getJsonObject(14).getString("description"));
         Assert.assertEquals("www.foobar.com", json.getJsonObject(14).getString("url"));
         Assert.assertTrue(json.getJsonObject(14).getInt("resolutionOrder") > 0);
         Assert.assertFalse(json.getJsonObject(14).getBoolean("authenticationRequired"));
@@ -274,6 +276,7 @@ public class RepositoryResourceTest extends ResourceTest {
         repository.setPassword("testPassword");
         repository.setInternal(true);
         repository.setIdentifier("test");
+        repository.setDescription("description");
         repository.setUrl("www.foobar.com");
         repository.setType(RepositoryType.MAVEN);
         Response response = jersey.target(V1_REPOSITORY).request().header(X_API_KEY, apiKey)
@@ -284,6 +287,7 @@ public class RepositoryResourceTest extends ResourceTest {
             for (Repository repository1 : repositoryList) {
                 if (repository1.getIdentifier().equals("test")) {
                     repository1.setAuthenticationRequired(false);
+                    repository1.setDescription("new description");
                     response = jersey.target(V1_REPOSITORY).request().header(X_API_KEY, apiKey)
                             .post(Entity.entity(repository1, MediaType.APPLICATION_JSON));
                     Assert.assertEquals(200, response.getStatus());
@@ -294,6 +298,7 @@ public class RepositoryResourceTest extends ResourceTest {
             for (Repository repository1 : repositoryList) {
                 if (repository1.getIdentifier().equals("test")) {
                     Assert.assertEquals(false, repository1.isAuthenticationRequired());
+                    Assert.assertEquals("new description", repository1.getDescription());
                     break;
                 }
             }

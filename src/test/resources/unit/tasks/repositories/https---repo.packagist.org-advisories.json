@@ -183,7 +183,7 @@
           "title": "lgsl Stored Cross-Site Scripting vulnerability",
           "link": "https://github.com/advisories/GHSA-xx95-62h6-h7v3",
           "cve": "CVE-2024-56361",
-          "affectedVersions": "\u003C7.0.0",
+          "affectedVersions": "\u003E=4.3.0,\u003C=4.4.5|\u003C7.0.0",
           "source": "GitHub",
           "reportedAt": "2024-12-26 20:20:12",
           "composerRepository": "https://packagist.org",

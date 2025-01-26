@@ -174,7 +174,7 @@ public class ComposerAdvisoryParserTest {
                       ]
                     }
                       """);
-// TODO VS Test wildcardall versions
+
     public final static JSONObject VULN_WILDCARD_ALL = new JSONObject("""
             {
               "advisoryId": "PKSA-n8hw-tywm-xrh7",
@@ -202,8 +202,7 @@ public class ComposerAdvisoryParserTest {
               """);
 
 
-              //TODO VS Test NoOp version
-    public final static JSONObject VULN_NOOP_VERSION = new JSONObject("""
+    public final static JSONObject VULN_EXACT_VERSION = new JSONObject("""
             {
               "advisoryId": "PKSA-n8hw-tywm-xrh7",
               "packageName": "drupal/core",
@@ -254,6 +253,8 @@ public class ComposerAdvisoryParserTest {
         ComposerAdvisoryParser.parseAdvisory(VULN_FOP_CVE);
         ComposerAdvisoryParser.parseAdvisory(VULN_FOP_NO_CVE);
         ComposerAdvisoryParser.parseAdvisory(VULN_COMPOSER);
+        ComposerAdvisoryParser.parseAdvisory(VULN_WILDCARD_ALL);
+        ComposerAdvisoryParser.parseAdvisory(VULN_EXACT_VERSION);
     }
 
 }

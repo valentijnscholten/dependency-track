@@ -331,10 +331,7 @@ public class ComposerAdvisoryMirrorTask implements LoggableSubscriber {
             final PackageURL purl = generatePurlFromComposerAdvisory(advisory);
             if (purl == null)
                 return null;
-            String versionStartIncluding = null;
-            String versionStartExcluding = null;
-            String versionEndIncluding = null;
-            String versionEndExcluding = null;
+
             if (advisory.getAffectedVersions() != null) {
                 // regex splitters copied from Composer Version Parser
                 LOGGER.trace("Parsing version ranges for " + advisory.getPackageEcosystem() + " : "
@@ -343,6 +340,10 @@ public class ComposerAdvisoryMirrorTask implements LoggableSubscriber {
                         .map(String::trim).toArray(String[]::new);
 
                 for (String range : ranges) {
+                    String versionStartIncluding = null;
+                    String versionStartExcluding = null;
+                    String versionEndIncluding = null;
+                    String versionEndExcluding = null;
                     // Split by both ',' and ' '
                     String[] parts = Arrays.stream(range.split("(?<!^|as|[=>< ,]) *(?<!-)[, ](?!-) *(?!,|as|$)"))
                             .map(String::trim).toArray(String[]::new);
@@ -358,16 +359,15 @@ public class ComposerAdvisoryMirrorTask implements LoggableSubscriber {
                         } else if (part.startsWith("=")) {
                             versionStartIncluding = part.replace("=", "").trim();
                             versionEndIncluding = part.replace("=", "").trim();
+                        } else if (part.trim().equals("*")) {
+                            // Drupal sometimes uses * to indicate all versions are vulnerable for abandoned plugins
+                            // Since we don't have a "deprecated" or "endoflife" or "unsupported" or "abandoned" flag, we do this:
+                            versionEndExcluding = "999.999.999";
                         } else {
-                            // TODO VS Try to support all version ranges seen in Drupal package repo. All
-                            // from
-                            // packagist are supported above.
-                            /*
-                             * "<5.25.0 || 6.0.0 || 6.0.1" (no = for exact version)
-                             * "*" (all versions, plugin marked as unsupported)
-                             */
-                            LOGGER.warn("Unable to determine version range of " + advisory.getPackageEcosystem()
-                                    + " : " + advisory.getPackageName() + " : " + part);
+                            // No operator, so it's a single version. Or garbage. But since none of the parts are checked for formatting, we don't check neither
+                            // Drupal uses this, for example "8.1.0"
+                            versionStartIncluding = part;
+                            versionEndIncluding = part;
                         }
                     }
                     VulnerableSoftware vs = qm.getVulnerableSoftwareByPurl(purl.getType(), purl.getNamespace(),
@@ -379,6 +379,7 @@ public class ComposerAdvisoryMirrorTask implements LoggableSubscriber {
                             continue;
                         }
                     }
+
                     vs = new VulnerableSoftware();
                     vs.setVulnerable(true);
                     vs.setPurlType(purl.getType());
