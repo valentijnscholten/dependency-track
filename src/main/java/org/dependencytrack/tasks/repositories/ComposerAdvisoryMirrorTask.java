@@ -370,9 +370,8 @@ public class ComposerAdvisoryMirrorTask implements LoggableSubscriber {
                             versionEndIncluding = part;
                         }
                     }
-                    VulnerableSoftware vs = qm.getVulnerableSoftwareByPurl(purl.getType(), purl.getNamespace(),
-                            purl.getName(),
-                            versionEndExcluding, versionEndIncluding, versionStartExcluding, versionStartIncluding);
+                    VulnerableSoftware vs = qm.getVulnerableSoftwareByPurl(purl.getType(), purl.getNamespace(), purl.getName(),
+                        versionEndExcluding, versionEndIncluding, versionStartExcluding, versionStartIncluding);
                     if (vs != null) {
                         if (!vsList.contains(vs)) {
                             vsList.add(vs);
