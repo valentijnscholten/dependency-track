@@ -100,6 +100,8 @@ public class Repository implements Serializable {
     @Column(name = "PASSWORD")
     private String password;
 
+//TODO VS Add Description field
+
     @Persistent
     @Column(name = "CONFIG", jdbcType = "CLOB")
     @JsonDeserialize(using = TrimmedStringDeserializer.class)
