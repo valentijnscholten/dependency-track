@@ -190,7 +190,6 @@ public class RepositoryResource extends AlpineResource {
 
         try (QueryManager qm = new QueryManager()) {
             final boolean exists = qm.repositoryExist(jsonRepository.getType(), StringUtils.trimToNull(jsonRepository.getIdentifier()));
-            //TODO VS Add description to Frontend
             if (!exists) {
                 final Repository repository = qm.createRepository(
                         jsonRepository.getType(),

@@ -11,4 +11,6 @@ Dependency-Track integrates with Composer by mirroring advisories via each repos
 The mirroring (and alias synchronization) can be enabled/disabled [per repository]({{ site.baseurl }}{% link _docs/datasources/repositories.md %}).
 The mirror is refreshed daily, or upon restart of the Dependency-Track instance.
 
-![GitHub Advisories Configuration](../../images/screenshots/github-advisories-configuration.png)
+![Composer Advisories Configuration](../../images/screenshots/composer-repository-configuration.png)
+
+

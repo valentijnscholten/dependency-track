@@ -132,7 +132,7 @@ public class RepositoryQueryManager extends QueryManager implements IQueryManage
     }
 
     /**
-     * Creates a new Repository.
+     * Creates a new Repository. Unless there alreaady is an existing Repository with the same type and identifier.
      *
      * @param type                     the type of repository
      * @param identifier               a unique (to the type) identifier for the repo
